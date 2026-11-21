@@ -30,9 +30,9 @@ void av_crop(int sx,int sy,int sw,int sh,float dx,float dy,float dw,float dh)
 {(void)sx;(void)sy;(void)sw;(void)sh;(void)dx;(void)dy;(void)dw;(void)dh;}
 void av_pump(void){}
 int av_edges(uint32_t *o){(void)o;return 0;}
-int av_native(void){return 0;}
+int av_native(const char *u){(void)u;return 0;}
 void video_mac_radius(float r){(void)r;}
 void video_mac_underlay(void){}
-void video_mac_hole(float x,float y,float w,float h)
-{(void)x;(void)y;(void)w;(void)h;}
+void video_mac_hole(float x,float y,float w,float h,float radius,float alpha)
+{(void)x;(void)y;(void)w;(void)h;(void)radius;(void)alpha;}
 int video_mac_real(void){return 0;}
