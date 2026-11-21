@@ -9,7 +9,8 @@ export APPID="${APPID:-fr.edo.originuilab.dev}"
 export TITLE="${TITLE:-Origin UI Lab (Development)}"
 case "$TARGET" in
   mac) exec bash tools/build.sh mac "${@:2}" ;;
+  windows) exec bash tools/build.sh windows "${@:2}" ;;
   webos) exec bash tools/build.sh webos "${@:2}" ;;
   package) exec bash tools/package.sh ;;
-  *) printf 'Usage: %s mac|webos|package [--run]\n' "$0" >&2; exit 2 ;;
+  *) printf 'Usage: %s mac|windows|webos|package [--run]\n' "$0" >&2; exit 2 ;;
 esac
