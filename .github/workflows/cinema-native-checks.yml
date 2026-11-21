@@ -44,7 +44,7 @@ jobs:
           root = pathlib.Path.cwd()
           out = root / "build/mac/cinema-smoke.png"
           env = dict(os.environ, SB_SKIP_LOGIN="1", SB_ASSETS=str(root / "assets"),
-                     SB_SHOT=str(out), SB_SHOT_EXIT="1", SB_SHOT_FRAME="90")
+                     SB_SHOT=str(out), SB_SHOT_EXIT="1", SB_SHOT_FRAME="240", SB_SCRIPT="110:back")
           p = subprocess.run([str(root / "build/mac/stremioorigin")],
                              env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                              text=True, timeout=75)
