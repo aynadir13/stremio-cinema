@@ -30,6 +30,15 @@ jobs:
           $p = Start-Process -FilePath "$env:RUNNER_TEMP\cygwin-setup.exe" -ArgumentList $args -Wait -PassThru -NoNewWindow
           if ($p.ExitCode -ne 0) { throw "Cygwin setup failed: $($p.ExitCode)" }
 
+      - name: Restore third-party compilation from previous Windows attempt
+        id: tp-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: build/windows/tp
+          key: cygwin-thirdparty-2026-${{ github.sha }}
+          restore-keys: |
+            cygwin-thirdparty-2026-
+
       - name: Compile genuine native C/SDL2/OpenGL Windows executable
         run: |
           $ErrorActionPreference = 'Stop'
@@ -38,6 +47,13 @@ jobs:
           & 'C:\cygwin64\bin\bash.exe' --login -c $cmd
           if ($LASTEXITCODE -ne 0) { throw "Native Windows compiler failed: $LASTEXITCODE" }
           if (!(Test-Path 'build/windows/StremioCinema.exe')) { throw 'No native PE executable built' }
+
+      - name: Preserve native third-party objects even if app compile fails
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: build/windows/tp
+          key: cygwin-thirdparty-2026-${{ github.sha }}
 
       - name: Package executable, assets and Windows launcher
         run: |
