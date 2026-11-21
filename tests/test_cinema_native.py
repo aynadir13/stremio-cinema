@@ -11,7 +11,7 @@ BUILD = (ROOT / "tools/build.sh").read_text()
 
 class CinemaNativeTests(unittest.TestCase):
     def test_opt_in_native_renderer(self):
-        self.assertEqual(APP.count("/* CINEMA_NATIVE_NAV_V1 */"), 1)
+        self.assertEqual(APP.count("/* CINEMA_NATIVE_NAV_V2 */"), 1)
         self.assertEqual(APP.count("if (cinema_nav_draw()) return;"), 1)
         self.assertIn("#ifdef SB_CINEMA_NATIVE", APP)
         self.assertIn("hit_add_nav(", APP)
@@ -26,7 +26,7 @@ class CinemaNativeTests(unittest.TestCase):
         self.assertIn('CFG="$APPID cinema=$CINEMA_UI"', BUILD)
     @unittest.skipUnless(shutil.which("cc"), "C compiler not installed")
     def test_c_syntax_of_new_navigation(self):
-        m = re.search(r"/\* CINEMA_NATIVE_NAV_V1 \*/(.*?)#endif /\* SB_CINEMA_NATIVE \*/", APP, re.S)
+        m = re.search(r"/\* CINEMA_NATIVE_NAV_V2 \*/(.*?)#endif /\* SB_CINEMA_NATIVE \*/", APP, re.S)
         self.assertIsNotNone(m)
         stub = r"""
 #include <stdint.h>
