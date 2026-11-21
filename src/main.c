@@ -207,7 +207,23 @@ static void mem_guard(void) {
         { extern void sp_mem_level(int); sp_mem_level(lvl); } /* the seek previews' decoders rest while the TV is nearly out */
         if (lvl != gLvl) { fprintf(stderr, "[mem] guard %d -> %d: app %d MB, TV free %d MB of %d%s\n", gLvl, lvl, rss, fr, tot, film ? " (a film plays)" : ""); gLvl = lvl; } } }
 }
+#ifdef SB_CINEMA_NATIVE
+static char **cinema_argv;
+int cinema_activate_profile(const char *id) {
+  const char *base = plat_data_dir();
+  if (!cinema_argv || !cinema_argv[0] || !cinema_profile_set_active(base, id)) return 0;
+  store_flush();
+  if (setenv("SB_CINEMA_PROFILE", id, 1) != 0) return 0;
+  setenv("SB_CINEMA_SKIP_PROFILE_PICKER", "1", 1);
+  execvp(cinema_argv[0], cinema_argv);
+  perror("[cinema] profile relaunch");
+  return 0;
+}
+#endif
 int main(int argc, char **argv) {
+#ifdef SB_CINEMA_NATIVE
+  cinema_argv = argv;
+#endif
   (void)argc; (void)argv;
   /* webOS hands a native app its launch parameters as JSON in its first argument: a phone opening it to play something
      says {"cast":1} (Android TV: the link's ?cast=1, or SB_LAUNCH_CAST) */
