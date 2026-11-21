@@ -11,9 +11,16 @@
 #include <locale.h>
 #include <unistd.h>
 #include <signal.h>
+#include "core/cinema_profile.h"
 #ifdef SB_MAC
+#ifdef SB_WINDOWS
+/* Cygwin's runtime does not ship macOS execinfo.h; retain fatal signal
+ * reporting without the Mac-specific stack trace. */
+static void on_alarm(int sig) { fprintf(stderr, "[windows] fatal signal %d\n", sig); _exit(128 + sig); }
+#else
 #include <execinfo.h>
 static void on_alarm(int sig) { (void)sig; void *fr[48]; int n = backtrace(fr, 48); backtrace_symbols_fd(fr, n, 2); _exit(3); }
+#endif
 static volatile int profN; /* the profiler is the TV's */
 #else
 #include <ucontext.h>
@@ -206,7 +213,23 @@ static void mem_guard(void) {
         { extern void sp_mem_level(int); sp_mem_level(lvl); } /* the seek previews' decoders rest while the TV is nearly out */
         if (lvl != gLvl) { fprintf(stderr, "[mem] guard %d -> %d: app %d MB, TV free %d MB of %d%s\n", gLvl, lvl, rss, fr, tot, film ? " (a film plays)" : ""); gLvl = lvl; } } }
 }
+#ifdef SB_CINEMA_NATIVE
+static char **cinema_argv;
+int cinema_activate_profile(const char *id) {
+  const char *base = plat_data_dir();
+  if (!cinema_argv || !cinema_argv[0] || !cinema_profile_set_active(base, id)) return 0;
+  store_flush();
+  if (setenv("SB_CINEMA_PROFILE", id, 1) != 0) return 0;
+  setenv("SB_CINEMA_SKIP_PROFILE_PICKER", "1", 1);
+  execvp(cinema_argv[0], cinema_argv);
+  perror("[cinema] profile relaunch");
+  return 0;
+}
+#endif
 int main(int argc, char **argv) {
+#ifdef SB_CINEMA_NATIVE
+  cinema_argv = argv;
+#endif
   (void)argc; (void)argv;
   /* webOS hands a native app its launch parameters as JSON in its first argument: a phone opening it to play something
      says {"cast":1} (Android TV: the link's ?cast=1, or SB_LAUNCH_CAST) */
@@ -232,7 +255,15 @@ int main(int argc, char **argv) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 #endif
   gl_config(getenv("SB_GLCFG") ? atoi(getenv("SB_GLCFG")) : 0); /* 0 RGBA8, 1 RGB8 (no alpha), 2 RGB565: which surface the compositor takes without a copy */
-  store_init(plat_data_dir()); /* before the window: the drawing size is a setting */
+#ifdef SB_CINEMA_NATIVE
+  /* Profile choice is resolved BEFORE reading authentication or preferences.
+   * Never switch a live account in place: a restart is required. */
+  const char *cinema_dir = cinema_profile_data_dir(plat_data_dir());
+  if (!cinema_dir) { fprintf(stderr, "[cinema] refusing unsafe profile startup\\n"); return 2; }
+  store_init(cinema_dir);
+#else
+  store_init(plat_data_dir()); /* original Stremio Origin path */
+#endif
   { extern void supportcard_start(int autoReload); supportcard_start(argc > 1 && argv[1] && strstr(argv[1], "autoReload") != NULL); } /* (a real start counted for the support card; the TV relaunching it on its own is not one) */
   int memMb = plat_mem_total_mb();
   int w, h; Uint32 flags; plat_window_size(&w, &h, &flags);
@@ -268,6 +299,15 @@ int main(int argc, char **argv) {
   pace_init();
 #endif
   plat_post_window(win);
+#ifdef SB_WINDOWS
+  glewExperimental = GL_TRUE;
+  GLenum glewStatus = glewInit();
+  if (glewStatus != GLEW_OK) {
+    fprintf(stderr, "[windows] GLEW initialization failed: %s\n", glewGetErrorString(glewStatus));
+    return 1;
+  }
+  glGetError(); /* GLEW may probe an unavailable extension on GL 2.1. */
+#endif
   SDL_StopTextInput();
   int dw, dh; SDL_GL_GetDrawableSize(win, &dw, &dh);
   fprintf(stderr, "[start] %s window %dx%d drawable %dx%d\n", plat_device_name(), w, h, dw, dh);

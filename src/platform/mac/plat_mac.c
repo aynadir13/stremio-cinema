@@ -10,7 +10,13 @@
 static char assetDir[1024], dataDir[1024];
 void plat_pre_init(const char *appId) { (void)appId;
   const char *a = getenv("SB_ASSETS"); snprintf(assetDir, sizeof assetDir, "%s", a ? a : "assets");
-  const char *h = getenv("HOME"); snprintf(dataDir, sizeof dataDir, "%s/Library/Application Support/StremioOrigin", h ? h : "/tmp");
+  const char *h = getenv("HOME");
+#ifdef SB_CINEMA_NATIVE
+  /* Separate the development fork from the original Mac client too. */
+  snprintf(dataDir, sizeof dataDir, "%s/Library/Application Support/OriginUILabDev", h ? h : "/tmp");
+#else
+  snprintf(dataDir, sizeof dataDir, "%s/Library/Application Support/StremioOrigin", h ? h : "/tmp");
+#endif
   char cmd[1200]; snprintf(cmd, sizeof cmd, "mkdir -p \"%s\"", dataDir); if (system(cmd)) {}
   applog_start(dataDir); /* the terminal keeps every line; the kept log gets them too */
 }

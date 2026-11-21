@@ -54,6 +54,13 @@ static int same_dev_as_parent(const char *p) { /* a mount point left behind (an 
   struct stat a, b; if (stat(p, &a) || stat(par, &b)) return 1; return a.st_dev == b.st_dev; }
 static void fs_name(const char *p, const char *hint, char *o, size_t n) { /* what the source said, else the filesystem's magic */
   if (hint && *hint && strcmp(hint, "fuseblk")) { snprintf(o, n, "%s", hint); return; }
+#ifdef SB_WINDOWS
+  /* USB filesystem magic is a Linux/macOS facility; the Cygwin preview
+   * keeps the supplied filesystem label and does not enumerate TV mounts. */
+  (void)p;
+  snprintf(o, n, "%s", hint && *hint ? hint : "?");
+  return;
+#else
   struct statfs f; const char *k = NULL; if (!statfs(p, &f)) {
 #ifdef __linux__
     unsigned long t = (unsigned long)f.f_type;
@@ -63,6 +70,7 @@ static void fs_name(const char *p, const char *hint, char *o, size_t n) { /* wha
 #endif
   }
   snprintf(o, n, "%s", k ? k : hint && *hint ? hint : "?");
+#endif
 }
 /* the block device under a mount is still there (a drive pulled out leaves its mount behind inside a jail);
    1 when it cannot be told (no /sys/dev/block in view, the Mac, a folder standing in for a drive) */

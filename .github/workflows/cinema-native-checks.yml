@@ -1,0 +1,70 @@
+name: Native UI smoke tests
+on:
+  push:
+    branches: [feat/native-netflix-shell]
+    paths:
+      - 'src/**'
+      - 'tools/**'
+      - 'tests/**'
+      - '.github/workflows/cinema-native-checks.yml'
+  workflow_dispatch:
+jobs:
+  syntax-and-invariants:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tests -p 'test_cinema*.py' -v
+      - run: bash -n tools/build.sh tools/build-cinema.sh tools/package.sh
+  mac-native-build:
+    runs-on: macos-15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SDL2 headers and libraries
+        run: brew install sdl2
+      - name: Build original C/SDL2/OpenGL Mac target with Cinema skin
+        env:
+          CINEMA_UI: '1'
+          APPID: fr.edo.originuilab.dev
+        run: |
+          export MACSDL="$(brew --prefix sdl2)"
+          bash tools/build-cinema.sh mac
+          test -x build/mac/stremioorigin
+      - name: Runtime smoke test (native OpenGL, offscreen capture)
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import os, subprocess, pathlib
+          root = pathlib.Path.cwd()
+          out = root / "build/mac/cinema-smoke.png"
+          env = dict(os.environ, SB_SKIP_LOGIN="1", SB_CINEMA_SKIP_PROFILE_PICKER="1", SB_ASSETS=str(root / "assets"),
+                     SB_SHOT=str(out), SB_SHOT_EXIT="1", SB_SHOT_FRAME="240", SB_SCRIPT="110:back")
+          p = subprocess.run([str(root / "build/mac/stremioorigin")],
+                             env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             text=True, timeout=75)
+          print(p.stdout[-6000:])
+          assert p.returncode == 0, "native app exited with an error"
+          assert out.exists() and out.stat().st_size > 10000, "no native screenshot created"
+          print("Native screenshot:", out, out.stat().st_size, "bytes")
+          PY
+      - name: Upload real native screenshot if available
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: origin-ui-lab-native-screenshot
+          path: build/mac/cinema-smoke.png
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload native Mac executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: origin-ui-lab-macos-native
+          path: build/mac/stremioorigin
+          if-no-files-found: error
+          retention-days: 7

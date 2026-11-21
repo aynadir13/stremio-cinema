@@ -26,6 +26,7 @@
 #include "ui/sound.h"
 #include "ui/orbs.h"
 #include <stdio.h>
+#include <ctype.h> /* toupper is used in the native metadata settings UI */
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>

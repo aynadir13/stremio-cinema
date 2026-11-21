@@ -21,8 +21,15 @@ case "$TARGET" in
   mac)
     CC="cc"; CXX="c++"; AR="ar"; WEBPCC="cc"
     TFLAGS="-DSB_MAC=1 -I$MACSDL/include -I$MACSDL/include/SDL2"
-    LIBS="$($MACSDL/bin/sdl2-config --static-libs) -Wl,-framework,OpenGL -Wl,-framework,AVFoundation -Wl,-framework,CoreMedia -Wl,-framework,CoreVideo -Wl,-framework,Foundation -Wl,-framework,QuartzCore -lcurl -liconv -lz"   # (AVFoundation: the preview plays the streams)
+    LIBS="$($MACSDL/bin/sdl2-config --static-libs 2>/dev/null || $MACSDL/bin/sdl2-config --libs) -Wl,-framework,OpenGL -Wl,-framework,AVFoundation -Wl,-framework,CoreMedia -Wl,-framework,CoreVideo -Wl,-framework,Foundation -Wl,-framework,QuartzCore -lcurl -liconv -lz"   # (AVFoundation: the preview plays the streams)
     PLAT=mac ;;
+  windows)
+    # Cygwin POSIX compatibility build: Windows PE .exe with SDL2/OpenGL.
+    # This is a native UI preview, not a standalone MSVC/MinGW player.
+    CC="gcc"; CXX="g++"; AR="ar"; WEBPCC="gcc"
+    TFLAGS="-DSB_MAC=1 -DSB_WINDOWS=1 -I/usr/include/SDL2"
+    LIBS="$(sdl2-config --libs) -lGLEW -lGL -lcurl -lz -liconv -lpthread"
+    PLAT=windows ;;
   webos)
     CC="$ZIG cc -target arm-linux-gnueabi.2.12 -mcpu=cortex_a9 -mfloat-abi=softfp"
     WEBPCC="$ZIG cc -target arm-linux-gnueabi.2.12 -mcpu=cortex_a9-neon -mfloat-abi=softfp"   # libwebp's NEON paths break this compiler's backend: plain C there
@@ -34,9 +41,14 @@ case "$TARGET" in
   *) echo "unknown target $TARGET"; exit 1;;
 esac
 OPT="-O2 -fno-strict-aliasing -ffunction-sections -fdata-sections"
+# Windows preview builds the large third-party C/C++ sources locally: moderate
+# optimisation keeps the first CI compilation practical without touching webOS.
+[ "$TARGET" = windows ] && OPT="-O1 -fno-strict-aliasing -ffunction-sections -fdata-sections"
 if [ -n "${SB_FP:-}" ]; then OPT="$OPT -fno-omit-frame-pointer -marm"; fi  # SB_FP=1: frame pointers for the profiler
 if [ -n "${SB_ASAN:-}" ]; then OPT="-O1 -g -fsanitize=address -fno-omit-frame-pointer"; B="$B-asan"; mkdir -p "$B/tp" "$B/obj"; fi  # SB_ASAN=1 tools/build.sh mac: a sanitizer build in build/mac-asan
 APPID="${APPID:-tv.stremioorigin.app}"
+CINEMA_UI="${CINEMA_UI:-0}"
+[ "$CINEMA_UI" = 1 ] && OPT="$OPT -DSB_CINEMA_NATIVE=1"
 CFLAGS="$OPT -std=c11 -D_GNU_SOURCE -DSB_APP_ID=\"$APPID\" -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers $TFLAGS -I$ROOT/src -I$TP/freetype/include -I$TP/harfbuzz/src -I$TP/fribidi/lib -I$TP/config/fribidi -I$TP/cjson -I$TP/stb -I$TP/qrcodegen -I$TP/webp -I$TP/crypto -I$TP/libass"
 
 # ---- built-in keys ------------------------------------------------------------------------
@@ -60,6 +72,13 @@ print('== keys built in: %s' % (', '.join(n for n in ('TRAKT_CLIENT_ID', 'TMDB_A
 PY
 CFLAGS="$CFLAGS -I$B"
 
+# Fast Windows portability check: detect platform/header breakage BEFORE the
+# expensive FreeType/HarfBuzz/WebP third-party compilation.
+if [ "$TARGET" = windows ]; then
+  echo "== Windows native C syntax preflight"
+  $CC $CFLAGS -fsyntax-only "$ROOT/src/main.c" "$ROOT"/src/platform/windows/*.c
+fi
+
 # ---- third-party ---------------------------------------------------------------------------
 if [ $CLEAN_TP = 1 ]; then rm -rf "$B/tp"; mkdir -p "$B/tp"; fi
 if [ ! -f "$B/tp/libtp.a" ]; then
@@ -77,11 +96,29 @@ if [ ! -f "$B/tp/libtp.a" ]; then
   done
   $CC $TPQ -c "$TP/cjson/cJSON.c" -o "$B/tp/cJSON.o"
   $CC $TPQ -c "$TP/qrcodegen/qrcodegen.c" -o "$B/tp/qrcodegen.o"
+  # This subset intentionally omits libwebp's SSE2 implementations.
+  # On x86_64 Windows the dispatcher must not reference those absent symbols.
+  WEBP_CPU_FLAGS=""
+  [ "$TARGET" = windows ] && WEBP_CPU_FLAGS="-U__SSE2__ -U__SSE4_1__"
   for f in "$TP"/webp/src/dec/*.c "$TP"/webp/src/dsp/*.c "$TP"/webp/src/utils/*.c; do   # libwebp, decoder only
     case "$(basename "$f")" in *enc*|*writer*|*quant_levels_utils*|*_sse*|*_msa*|*_mips*) continue;; esac
-    $WEBPCC $TPQ -DWEBP_REDUCE_CSP -I$TP/webp -c "$f" -o "$B/tp/webp_$(basename "${f%.c}").o"
+    $WEBPCC $TPQ $WEBP_CPU_FLAGS -DWEBP_REDUCE_CSP -I$TP/webp -c "$f" -o "$B/tp/webp_$(basename "${f%.c}").o"
   done
   $AR rcs "$B/tp/libtp.a" "$B"/tp/*.o
+  [ "$TARGET" = windows ] && touch "$B/tp/.webp-no-simd"
+fi
+
+# A previously cached Cygwin archive may contain an x86 SIMD dispatch that
+# refers to omitted SSE2 objects. Rebuild only WebP objects, keep all other
+# cached third-party objects and rearchive once.
+if [ "$TARGET" = windows ] && [ ! -f "$B/tp/.webp-no-simd" ]; then
+  echo "== Windows WebP scalar decoder cache upgrade"
+  for f in "$TP"/webp/src/dec/*.c "$TP"/webp/src/dsp/*.c "$TP"/webp/src/utils/*.c; do
+    case "$(basename "$f")" in *enc*|*writer*|*quant_levels_utils*|*_sse*|*_msa*|*_mips*) continue;; esac
+    $WEBPCC -w $OPT -U__SSE2__ -U__SSE4_1__ -DWEBP_REDUCE_CSP -I$TP/webp -c "$f" -o "$B/tp/webp_$(basename "${f%.c}").o"
+  done
+  $AR rcs "$B/tp/libtp.a" "$B"/tp/*.o
+  touch "$B/tp/.webp-no-simd"
 fi
 
 if [ ! -f "$B/tp/libass.a" ]; then   # libass (styled ASS / SSA subtitles) on the FreeType, HarfBuzz and FriBidi above, no system font provider
@@ -97,7 +134,7 @@ fi
 # ---- the app -------------------------------------------------------------------------------
 echo "== app ($TARGET)"
 OBJS=()
-STAMP="$B/obj/.appid"; if [ "$(cat "$STAMP" 2>/dev/null)" != "$APPID" ]; then rm -f "$B"/obj/*.o; echo "$APPID" > "$STAMP"; fi
+STAMP="$B/obj/.appid"; CFG="$APPID cinema=$CINEMA_UI"; if [ "$(cat "$STAMP" 2>/dev/null)" != "$CFG" ]; then rm -f "$B"/obj/*.o; echo "$CFG" > "$STAMP"; fi
 for f in "$TP"/crypto/*.c; do   # SHA-256, AES, GCM, PBKDF2 (log sharing): small, built beside the app rather than into libtp.a
   o="$B/tp/crypto_$(basename "${f%.c}").o"; if [ ! -f "$o" ] || [ "$f" -nt "$o" ]; then $CC -w $OPT -I$TP/crypto -c "$f" -o "$o"; fi; OBJS+=("$o")
 done
@@ -109,8 +146,9 @@ for f in "$ROOT"/src/core/*.c "$ROOT"/src/ui/*.c "$ROOT"/src/screens/*.c "$ROOT"
   fi
   OBJS+=("$o")
 done
-if [ "$TARGET" = mac ]; then
-  $CXX $OPT -o "$B/stremioorigin" "${OBJS[@]}" "$B/tp/libass.a" "$B/tp/libtp.a" $LIBS
+if [ "$TARGET" = mac ] || [ "$TARGET" = windows ]; then
+  EXE="stremioorigin"; [ "$TARGET" = windows ] && EXE="StremioCinema.exe"
+  $CXX $OPT -o "$B/$EXE" "${OBJS[@]}" "$B/tp/libass.a" "$B/tp/libtp.a" $LIBS
 else
   $CXX $OPT -Wl,--gc-sections -Wl,-T,"$ROOT/tools/webos-relocs.ld" -o "$B/stremioorigin.dbg" "${OBJS[@]}" "$B/tp/libass.a" "$B/tp/libtp.a" $LIBS   # symbols kept: crash addresses resolve against it
   python3 "$ROOT/tools/relocs-check.py" "$B/stremioorigin.dbg"   # (webOS 3 starts it only with them together)
@@ -118,6 +156,7 @@ else
   BID=$(LC_ALL=C grep -ao 'SBBUILDID:[0-9a-f]\{32\}' "$B/stremioorigin.dbg" | head -1 | cut -c11-22)   # every build's debug copy kept by its id (the last 40): a crash from any build installed can be named
   if [ -n "$BID" ]; then mkdir -p "$ROOT/dist/dbg/builds"; cp "$B/stremioorigin.dbg" "$ROOT/dist/dbg/builds/$BID.dbg"; ls -t "$ROOT"/dist/dbg/builds/*.dbg | tail -n +41 | xargs rm -f; fi
 fi
-ls -l "$B/stremioorigin" | awk '{printf "%s  %.1f MB\n", $NF, $5/1048576}'
-[ $RUN = 1 ] && [ "$TARGET" = mac ] && exec "$B/stremioorigin" "$ROOT/assets"
+OUT="$B/stremioorigin"; [ "$TARGET" = windows ] && OUT="$B/StremioCinema.exe"
+ls -l "$OUT" | awk '{printf "%s  %.1f MB\n", $NF, $5/1048576}'
+[ "$RUN" = 1 ] && { [ "$TARGET" = mac ] || [ "$TARGET" = windows ]; } && exec "$OUT" "$ROOT/assets"
 exit 0

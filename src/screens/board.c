@@ -28,6 +28,19 @@
 
 #define MAXROWS 128 /* every installed catalog has its row (the answers' tokens carry the row in 7 bits) */
 #define FEAT_ROW (MAXROWS - 1) /* a token's row for a spotlight title */
+/* Cinematic layout: reference image 1200x675 mapped to the 1920x1080
+ * logical scene. Artwork and titles still come from real Stremio catalogs. */
+#ifdef SB_CINEMA_NATIVE
+#define ROWS_TOP 972.0f
+#define HERO_X 78.0f
+#define HERO_Y 665.0f
+#define HERO_W (SB_W * 0.58f)
+#define RC_W 356.0f
+#define RC_H 201.0f
+#define RW_W 356.0f
+#define RW_H 201.0f
+#define RGAP 14.0f
+#else
 #define ROWS_TOP 478.0f             /* a focused row ends ~80 px above the bottom edge */
 #define HERO_X 48.0f
 #define HERO_Y 100.0f
@@ -38,6 +51,7 @@
 #define RW_W 500.0f
 #define RW_H 281.0f
 #define RGAP 28.0f
+#endif
 #define GC_W 200.0f          /* Discover's grid: smaller than a row's posters (180 x 270 until 2026-11-08: a touch bigger, the user; still 8 a line) */
 #define GC_H 300.0f
 #define FILT_H 104.0f        /* Discover's filter strip (it stays put above the grid) */
@@ -96,7 +110,15 @@ static void prep_free(Row *r) { free(r->cp); free(r->cpSt); r->cp = NULL; r->cpS
 static void row_clear(Row *r) { itemlist_clear(&r->items); prep_free(r); free(r->gone); r->gone = NULL; r->ngone = 0; }
 static Row *row_add(Board *b, const char *title, int wide, int label) {
   if (b->n >= MAXROWS) return NULL; Row *r = &b->rows[b->n++]; row_clear(r); memset(r, 0, sizeof *r); prep_free(r);
-  snprintf(r->title, sizeof r->title, "%s", title); r->wide = wide; r->label = label; r->hidden = 1; r->closing = 0; r->hk = 1; r->popCol = -1; tween_set(&r->off, 0); tween_set(&r->a, 1); return r;
+  snprintf(r->title, sizeof r->title, "%s", title);
+#ifdef SB_CINEMA_NATIVE
+  /* Use actual catalog backdrops for the reference's 16:9 cards, rather
+   * than stretching portrait posters into a landscape slot. */
+  r->wide = b->kind == 0 ? 1 : wide;
+#else
+  r->wide = wide;
+#endif
+  r->label = label; r->hidden = 1; r->closing = 0; r->hk = 1; r->popCol = -1; tween_set(&r->off, 0); tween_set(&r->a, 1); return r;
 }
 static void slide_row(Row *r) {
   if (r->grid) { tween_to(&r->off, 0, 0.18f, EASE_ROW); if (r->popCol != r->col) { r->popCol = r->col; focus_pop(&r->pop); } return; } /* (a grid line fits the screen: it never slides) */
@@ -841,7 +863,20 @@ static void filt_close(void) { if (!FL.open) return; FL.open = 0; tween_to(&FL.a
 static void filt_apply(Board *b) { /* the listing asked again with the strip's choice; the focus stays on the strip, on the same pill */
   int col = FL.which < 3 ? FL.which : 0; load_catalog_rows(b, 1, 0); b->rowIdx = 0; if (b->n && b->rows[0].filt) b->rows[0].col = col; b->featOn = 0; timer_start(&b->fade, 0.5f); for (int i = 0; i < b->n; i++) { slide_row(&b->rows[i]); tween_set(&b->rows[i].off, b->rows[i].off.to); }
 }
-static void genre_default(void) { int req; char g[1][48]; FL.genre[0] = 0; if (disc_genres(g, 1, &req) > 0 && req) snprintf(FL.genre, sizeof FL.genre, "%s", g[0]); } /* (a genre the catalog needs: its first, as the official app) */
+static void genre_default(void) { int req; char g[1][48]; FL.genre[0] = 0; if (disc_genres(g, 1, &req) > 0 && req) snprintf(FL.genre, sizeof FL.genre, "%s", g[0]); }
+#ifdef SB_CINEMA_NATIVE
+/* Route the cinematic Shows/Movies tabs to genuine addon catalog type
+ * filters. We never swap the screen for mock/static movie lists. */
+void board_cinema_disc_type(int movie) {
+  const char *type = movie ? "movie" : "series";
+  if (!strcmp(FL.type, type)) return;
+  snprintf(FL.type, sizeof FL.type, "%s", type);
+  FL.cat = 0;
+  genre_default();
+  if (SCR == SCR_DISC && boards[1].built) filt_apply(&boards[1]);
+}
+#endif
+ /* (a genre the catalog needs: its first, as the official app) */
 static int filt_set(int i) { /* the choice i of the open pill taken (the official rules: a type resets its catalog and genre, a catalog its genre); 1 when it changed */
   if (i < 0 || i >= FL.n) return 0; int ch = 0;
   if (FL.which == 0) { if (i < 16 && strcmp(optType[i], FL.type)) { snprintf(FL.type, sizeof FL.type, "%s", optType[i]); FL.cat = 0; genre_default(); ch = 1; } }
@@ -914,7 +949,11 @@ static void row_draw(Board *b, Row *r, int ri, float y, int near, float rowA) {
   if (!r->locAt && r->items.n && near) r->locAt = app_now();
   gfx_offset_push(nudge_x(&r->nudge), nudge_y(&r->nudge) + rx);
   if (ta < 1) gfx_opacity_push(ta);
+#ifdef SB_CINEMA_NATIVE
+  if (!r->grid) text_draw(T(r->title), rtl ? SB_W - 48 : 48, y + 18, 29, 700, RGB(0xb0, 0xa7, 0xa8), -0.3f, SB_W - 96, rtl ? ALIGN_RIGHT : ALIGN_LEFT);
+#else
   if (!r->grid) text_draw(T(r->title), rtl ? SB_W - 52 : 52, y + 18, 31, 700, RGB(0xe9, 0xe9, 0xee), -0.3f, SB_W - 104, rtl ? ALIGN_RIGHT : ALIGN_LEFT);
+#endif
   if (ta < 1) gfx_opacity_pop();
   float cy = r->grid ? y + 18 : y + 18 + lh + 26, step = step_of(r), off = r->off.v, cw = card_w(r), ch = card_h(r);
   int i0 = (int)(off / step) - 1, i1 = (int)((off + SB_W - 48) / step) + 1; if (i0 < 0) i0 = 0; if (i1 > r->items.n - 1) i1 = r->items.n - 1;

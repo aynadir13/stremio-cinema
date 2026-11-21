@@ -1,4 +1,7 @@
 #include "core/app.h"
+#ifdef SB_CINEMA_NATIVE
+#include "core/cinema_profile.h"
+#endif
 #include "core/away.h"
 #include "core/traktwatch.h"
 #include "core/scrobble.h"
@@ -18,6 +21,9 @@
 #include "ui/glass.h"
 #include "screens/welcome.h"
 #include "ui/gfx.h"
+#ifdef SB_CINEMA_NATIVE
+#include "core/cinema_brand.h"
+#endif
 #include "ui/text.h"
 #include "ui/img.h"
 #include "ui/icon.h"
@@ -338,8 +344,18 @@ static void clock_draw(void) { float W = text_width("00:00", 38, 600, -0.6f); cl
 
 /* ---- the top bar: centred tabs, the corner icons, one pill that glides to the focused tab ---- */
 TopNav topNav = { .idx = NAV_HOME };
-static const char *chipLabel(int i) { return i == NAV_DISC ? T("Discover") : i == NAV_HOME ? T("Home") : T("Library"); }
+static const char *chipLabel(int i) {
+#ifdef SB_CINEMA_NATIVE
+  return i == NAV_DISC ? "Shows" : i == NAV_MOVIES ? "Movies" : i == NAV_LIB ? "My Netflix" : "Home";
+#else
+  return i == NAV_DISC ? T("Discover") : i == NAV_HOME ? T("Home") : T("Library");
+#endif
+}
 static int chipCur(int i) {
+#ifdef SB_CINEMA_NATIVE
+  if (i == NAV_MOVIES) return SCR == SCR_DISC && topNav.idx == NAV_MOVIES;
+  if (i == NAV_DISC) return SCR == SCR_DISC && topNav.idx != NAV_MOVIES;
+#endif
   Scr t = i == NAV_SEARCH ? SCR_SEARCH : i == NAV_SET ? SCR_SET : i == NAV_DISC ? SCR_DISC : i == NAV_HOME ? SCR_HOME : SCR_LIB;
   return t == SCR || (t == SCR_HOME && (SCR == SCR_DETAIL || SCR == SCR_SIM));
 }
@@ -367,15 +383,24 @@ static void topnav_paint(void) {
     tween_to(&topNav.cornerF[i], f, 0.2f, EASE_CSS_EASE); tween_to(&topNav.cornerS[i], f, 0.3f, EASE_OUT); tween_to(&topNav.dotK[i], f, 0.24f, EASE_STD); }
   tween_to(&topNav.setRot, chipFocused(NAV_SET) ? 90 : 0, 0.5f, EASE_OUT);
 }
-static Scr chipScr(int i) { return i == NAV_SEARCH ? SCR_SEARCH : i == NAV_SET ? SCR_SET : i == NAV_DISC ? SCR_DISC : i == NAV_HOME ? SCR_HOME : SCR_LIB; }
+static Scr chipScr(int i) {
+#ifdef SB_CINEMA_NATIVE
+  if (i == NAV_MOVIES) return SCR_DISC;
+#endif
+  return i == NAV_SEARCH ? SCR_SEARCH : i == NAV_SET ? SCR_SET : i == NAV_DISC ? SCR_DISC : i == NAV_HOME ? SCR_HOME : SCR_LIB;
+}
 void topnav_focus(void) { topNav.active = 1; topnav_paint(); }
 void topnav_switch(int i) {
-  i = i < 0 ? 0 : i > 4 ? 4 : i;
+  i = i < 0 ? 0 : i >= NAV_COUNT ? NAV_COUNT - 1 : i;
   if (i == topNav.idx && (app_is_board(SCR) || SCR == SCR_SEARCH || SCR == SCR_SET)) return;
   { Scr c0 = (SCR == SCR_DETAIL || SCR == SCR_SIM) ? SCR_HOME : SCR; int cs = -1; for (int j = 0; j < 5; j++) if (chipScr(j) == c0) cs = j;
     if (i == NAV_SEARCH || i == NAV_SET) { navf.kind = NAV_ZOOM; navf.x = topNav.chipX[i] + topNav.chipW[i] / 2; navf.y = 50; } else nav_slide(i >= cs ? 1 : -1); }
   topNav.idx = i; nback = 0; topNav.active = 1;
-  app_go(chipScr(i), NULL, 1); topNav.active = 1; topnav_paint();
+  app_go(chipScr(i), NULL, 1);
+#ifdef SB_CINEMA_NATIVE
+  if (i == NAV_DISC || i == NAV_MOVIES) board_cinema_disc_type(i == NAV_MOVIES);
+#endif
+  topNav.active = 1; topnav_paint();
 }
 static void topnav_flush(int drop) { if (topNav.want < 0) return; int w = topNav.want; topNav.want = -1; if (drop) return; topNav.idx = -1; topnav_switch(w); }
 static void topnav_enter_content(void) {
@@ -393,7 +418,15 @@ static int topnav_key(int k) {
   if (update_pill_key(k, topNav.idx == NAV_SET)) { topnav_paint(); return 1; }
   topnav_paint();
   if (k == K_LEFT || k == K_RIGHT) {
+#ifdef SB_CINEMA_NATIVE
+    static const int seq[6] = { NAV_SET, NAV_SEARCH, NAV_HOME, NAV_DISC, NAV_MOVIES, NAV_LIB };
+    int pos = 0; for (int j = 0; j < 6; j++) if (seq[j] == topNav.idx) pos = j;
+    pos += k == K_RIGHT ? 1 : -1;
+    if (pos < 0) pos = 0; if (pos > 5) pos = 5;
+    int i = seq[pos];
+#else
     int i = topNav.idx + (k == K_RIGHT ? 1 : -1); if (i < 0) i = 0; if (i > 4) i = 4;
+#endif
     if (i == topNav.idx) { nudge_start(&topNav.nudge, k); return 1; } /* the end of the bar */
     Scr t = chipScr(i);
     if ((t == SCR_SEARCH || t == SCR_SET) && SCR != t) { topnav_flush(1); topNav.idx = i; topnav_paint(); return 1; }
@@ -486,13 +519,116 @@ static void corner_draw(int i, const char *icon, uint32_t dot, float rot) {
   if (sf < 0.999f) gfx_opacity_pop();
 }
 static void chip_focus(int i, int b) { (void)b; if (!topNav.active || topNav.idx != i) { topnav_flush(1); if (!topNav.active) { topNav.active = 1; } topNav.idx = i; topnav_paint(); } }
-static void chip_act(int i, int b) { (void)b; Scr tg = chipScr(i); Scr cur = (SCR == SCR_DETAIL || SCR == SCR_SIM) ? SCR_HOME : SCR; int ci = -1; for (int j = 2; j < 5; j++) if (chipScr(j) == cur) ci = j;
+#ifdef SB_CINEMA_NATIVE
+static void cinema_profile_open(void);
+#endif
+static void chip_act(int i, int b) { (void)b;
+#ifdef SB_CINEMA_NATIVE
+  if (i == NAV_SET) { cinema_profile_open(); return; }
+#endif
+  Scr tg = chipScr(i); Scr cur = (SCR == SCR_DETAIL || SCR == SCR_SIM) ? SCR_HOME : SCR; int ci = -1; for (int j = 2; j < 5; j++) if (chipScr(j) == cur) ci = j;
   if (app_overlay) { app_overlay->key(K_BACK); app_overlay = NULL; }
   topnav_flush(1); topNav.active = 1; topNav.idx = i;
   if (tg == SCR_SEARCH || tg == SCR_SET) topnav_key(K_OK); /* opens it, the highlight inside */
+#ifdef SB_CINEMA_NATIVE
+  else if (i == NAV_DISC || i == NAV_MOVIES) { topNav.idx = -1; topnav_switch(i); }
+#endif
   else if (i != ci || !app_is_board(SCR)) { topNav.idx = -1; topnav_switch(i); }
   else topnav_enter_content(); }
+/* Native Who's watching screen. The three slots are real isolated data
+ * contexts: picking one writes only the active ID and restarts BEFORE store_init.
+ * Settings remain available via the remote's red shortcut. */
+#ifdef SB_CINEMA_NATIVE
+static int cinemaProfileIdx;
+static Screen cinemaProfiles;
+static const char *const cinemaProfileId[3] = {"default", "sam", "enfants"};
+static const char *const cinemaProfileName[3] = {"Alex", "Sam", "Enfants"};
+static const uint32_t cinemaProfileColor[3] = {0xff684f85u, 0xff276a60u, 0xffaf8735u};
+static void cinema_profile_open(void) {
+  cinemaProfileIdx = 0;
+  app_overlay_keep(&cinemaProfiles);
+  app_overlay = &cinemaProfiles;
+}
+static void cinema_profile_choose(void) {
+  if (!cinema_activate_profile(cinemaProfileId[cinemaProfileIdx])) {
+    toast("Impossible de changer de profil", 3000, NULL);
+  }
+}
+static void cinema_profile_focus(int i, int b) { (void)b; if (i >= 0 && i < 3) cinemaProfileIdx = i; }
+static void cinema_profile_act(int i, int b) { (void)b; cinema_profile_focus(i, 0); cinema_profile_choose(); }
+static int cinema_profile_key(int k) {
+  if (k == K_BACK) { app_overlay = NULL; return 1; }
+  if (k == K_LEFT && cinemaProfileIdx > 0) cinemaProfileIdx--;
+  if (k == K_RIGHT && cinemaProfileIdx < 2) cinemaProfileIdx++;
+  if (k == K_OK) cinema_profile_choose();
+  return 1;
+}
+static void cinema_profile_draw(void) {
+  if (app_overlay != &cinemaProfiles) return;
+  gfx_rect(0, 0, SB_W, SB_H, RGB(10, 11, 14));
+  cinema_brand_draw(75, 38, 50, 74);
+  text_draw("Qui regarde ?", SB_W / 2, 312, 67, 500,
+            RGB(245,245,245), -1, SB_W, ALIGN_CENTER);
+  for (int i = 0; i < 3; i++) {
+    const float x = 620 + i * 255.0f, y = 470, w = 180;
+    gfx_rrect(x, y, w, w, 10, cinemaProfileColor[i]);
+    if (cinemaProfileIdx == i) gfx_ring_out(x, y, w, w, 10, 5, RGB(255,255,255));
+    char initial[2] = {cinemaProfileName[i][0], 0};
+    text_draw(initial, x + 90, y + 52, 90, 800, RGB(255,255,255), 0, w, ALIGN_CENTER);
+    text_draw(cinemaProfileName[i], x + 90, y + w + 22, 30, 600,
+              cinemaProfileIdx == i ? RGB(255,255,255) : RGB(165,165,165),
+              0, 240, ALIGN_CENTER);
+    hit_add(x - 10, y - 10, w + 20, w + 80, cinema_profile_focus, cinema_profile_act, i, 0);
+  }
+  text_draw("Flèches pour choisir   ·   Entrée pour ouvrir   ·   Retour pour fermer",
+            SB_W / 2, 810, 22, 400, RGB(160,160,160), 0, SB_W, ALIGN_CENTER);
+}
+static Screen cinemaProfiles = { .key = cinema_profile_key, .draw = cinema_profile_draw };
+#endif
+
+/* CINEMA_NATIVE_NAV_V2 */
+/* Based on the original 1200x675 reference. Screens, live catalogs and
+ * search remain entirely native. Movies/Shows are actual Discover filters. */
+#ifdef SB_CINEMA_NATIVE
+static int cinema_nav_draw(void) {
+  if (SCR == SCR_LOGIN || revpanel_page_k() >= 0.999f) return 0;
+  static const int order[6] = { NAV_SET, NAV_SEARCH, NAV_HOME, NAV_DISC, NAV_MOVIES, NAV_LIB };
+  static const float x[6] = { 46, 558, 625, 813, 979, 1155 };
+  static const float w[6] = { 62, 52, 155, 150, 155, 232 };
+  const float cy = 72, h = 74;
+  const uint32_t white = RGB(255,255,255), muted = RGB(235,225,226);
+  for (int j = 0; j < 6; ++j) {
+    int i = order[j]; float px = x[j], pw = w[j];
+    int focused = chipFocused(i), selected = focused || chipCur(i);
+    topNav.chipX[i] = px; topNav.chipW[i] = pw;
+    hit_add_nav(px, cy - h / 2, pw, h, chip_focus, chip_act, i, 0);
+    if (i == NAV_SET || i == NAV_SEARCH) {
+      if (focused) gfx_rrect(px + 5, cy - 34, pw - 10, 68, 34, WHITE_A(42));
+      if (i == NAV_SET) {
+        gfx_rrect(px + 7, cy - 26, 45, 52, 6, RGB(95,69,116));
+        text_draw("A", px + 29, cy - 21, 39, 800, white, 0, 45, ALIGN_CENTER);
+      } else {
+        /* Direct vector primitives: no missing icon file or truncated label. */
+        gfx_ring(px + 10, cy - 17, 29, 29, 14.5f, 3.5f, white);
+        text_draw("/", px + 35, cy + 3, 28, 700, white, 0, 25, ALIGN_LEFT);
+      }
+    } else {
+      if (selected) gfx_rrect(px, cy - h / 2, pw, h, h / 2, white);
+      text_draw(chipLabel(i), px + pw / 2, cy - 19, 31, selected ? 700 : 600,
+                selected ? RGB(15,15,15) : muted, -.2f, pw - 12, ALIGN_CENTER);
+      if (focused && !chipCur(i)) gfx_ring_out(px, cy - h / 2, pw, h, h / 2, 3, white);
+    }
+  }
+  cinema_brand_draw(SB_W - 80, 24, 52, 76);
+  hit_add_nav(SB_W - 95, 20, 82, 82, chip_focus, chip_act, NAV_HOME, 0);
+  return 1;
+}
+#endif /* SB_CINEMA_NATIVE */
+
 void topnav_draw(void) {
+#ifdef SB_CINEMA_NATIVE
+  if (cinema_nav_draw()) return;
+#endif
   if (!topNav.laidOut) topnav_paint();
   int signin = SCR == SCR_LOGIN; float pg = revpanel_page_k(); /* the reviews risen into the title page: the bar goes up and away for its buttons */
   if (pg >= 0.999f) return;
@@ -686,6 +822,18 @@ static void bg_baked_draw(GLuint tex, float alpha) {
 }
 static void bg_layer_draw(BgLayer *l, float alpha) {
   if (!l->url[0]) return;
+#ifdef SB_CINEMA_NATIVE
+  /* The existing baked GPU texture is the real title backdrop and shading.
+   * Draw a single rounded image quad with matching source UVs: one pass,
+   * no HTML layer, no extra texture allocation, and no fictitious artwork. */
+  if (app_is_board(SCR) && !btr_under() && bg_bake(l)) {
+    const float x = 46, y = 142, w = SB_W - 92, h = 783;
+    gfx_image(l->baked.tex, x, y, w, h, 30,
+              WHITE_A((int)(255 * alpha + 0.5f)),
+              x / SB_W, 1 - y / SB_H, (x + w) / SB_W, 1 - (y + h) / SB_H);
+    return;
+  }
+#endif
   if (bg_bake(l)) { bg_baked_draw(l->baked.tex, alpha); return; }
   if (l->tex) { bg_picture(l, alpha); bg_shading(l->mode, alpha); } /* no offscreen drawing: shaded as drawn */
 }
@@ -715,10 +863,23 @@ void bg_draw(void) {
   if (z != 1) gfx_scale_push(z, z, SB_W / 2, SB_H * 0.37f);
   if (under && btr_hold_gen() && bgGen == btr_hold_gen()) a = 0; /* a key stopped the trailer: its own backdrop never comes back, its last frame stays until the next title's */
   if (a <= 0.001f) { if (z != 1) gfx_scale_pop(); return; }
+#ifdef SB_CINEMA_NATIVE
+  /* The reference uses a contained, wide cinematic feature between the
+   * 89px header and the first catalog rail (coordinates scaled to 1080p).
+   * Clip only the backdrop on Home/Discover; do not clip UI or playback. */
+  int cinemaFramed = app_is_board(SCR) && !under;
+  if (cinemaFramed) {
+    gfx_rect(0, 0, SB_W, SB_H, RGB(20, 5, 8));
+    gfx_clip_push(46, 142, SB_W - 92, 783);
+  }
+#endif
   if (under && btr_hold_gen()) bg_layer_draw(&bgL[bgTop], a); /* over the trailer's frame: the new one alone, by the cover's fade */
   else if (bgFadingIn && bgFade.on) { bg_layer_draw(&bgL[!bgTop], a); bg_layer_draw(&bgL[bgTop], k * a); }
   else if (bgFadingOut && bgFade.on) { bg_layer_draw(&bgL[!bgTop], (1 - k) * a); bg_layer_draw(&bgL[bgTop], (1 - k) * a); }
   else bg_layer_draw(&bgL[bgTop], a);
+#ifdef SB_CINEMA_NATIVE
+  if (cinemaFramed) gfx_clip_pop();
+#endif
   if (z != 1) gfx_scale_pop();
 }
 /* the window is cleared transparent while the background trailer shows through it */
@@ -966,6 +1127,14 @@ void app_tick_behind(float dt) {
 }
 void app_tick(float dt) {
   DT = dt; NOW = SDL_GetTicks() / 1000.0; FRAME++; away_tick();
+#ifdef SB_CINEMA_NATIVE
+  static int cinemaPromptShown;
+  if (!cinemaPromptShown && app_splash_done && !app_overlay && !player_open()) {
+    cinemaPromptShown = 1;
+    if (!getenv("SB_CINEMA_SKIP_PROFILE_PICKER") && !app_launch_cast)
+      cinema_profile_open();
+  }
+#endif
   ptr_idle();
   ptr_frame();
   { static int swelled; if (app_hold_progress() > 0 && !swelled) { swelled = 1; sound_play(SND_HOLD); } else if (!okHold.down) swelled = 0; } /* holding OK: a low swell as the line starts round */
