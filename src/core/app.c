@@ -516,6 +516,9 @@ static void corner_draw(int i, const char *icon, uint32_t dot, float rot) {
   if (sf < 0.999f) gfx_opacity_pop();
 }
 static void chip_focus(int i, int b) { (void)b; if (!topNav.active || topNav.idx != i) { topnav_flush(1); if (!topNav.active) { topNav.active = 1; } topNav.idx = i; topnav_paint(); } }
+#ifdef SB_CINEMA_NATIVE
+static void cinema_profile_open(void);
+#endif
 static void chip_act(int i, int b) { (void)b;
 #ifdef SB_CINEMA_NATIVE
   if (i == NAV_SET) { cinema_profile_open(); return; }
