@@ -863,7 +863,20 @@ static void filt_close(void) { if (!FL.open) return; FL.open = 0; tween_to(&FL.a
 static void filt_apply(Board *b) { /* the listing asked again with the strip's choice; the focus stays on the strip, on the same pill */
   int col = FL.which < 3 ? FL.which : 0; load_catalog_rows(b, 1, 0); b->rowIdx = 0; if (b->n && b->rows[0].filt) b->rows[0].col = col; b->featOn = 0; timer_start(&b->fade, 0.5f); for (int i = 0; i < b->n; i++) { slide_row(&b->rows[i]); tween_set(&b->rows[i].off, b->rows[i].off.to); }
 }
-static void genre_default(void) { int req; char g[1][48]; FL.genre[0] = 0; if (disc_genres(g, 1, &req) > 0 && req) snprintf(FL.genre, sizeof FL.genre, "%s", g[0]); } /* (a genre the catalog needs: its first, as the official app) */
+static void genre_default(void) { int req; char g[1][48]; FL.genre[0] = 0; if (disc_genres(g, 1, &req) > 0 && req) snprintf(FL.genre, sizeof FL.genre, "%s", g[0]); }
+#ifdef SB_CINEMA_NATIVE
+/* Route the cinematic Shows/Movies tabs to genuine addon catalog type
+ * filters. We never swap the screen for mock/static movie lists. */
+void board_cinema_disc_type(int movie) {
+  const char *type = movie ? "movie" : "series";
+  if (!strcmp(FL.type, type)) return;
+  snprintf(FL.type, sizeof FL.type, "%s", type);
+  FL.cat = 0;
+  genre_default();
+  if (SCR == SCR_DISC && boards[1].built) filt_apply(&boards[1]);
+}
+#endif
+ /* (a genre the catalog needs: its first, as the official app) */
 static int filt_set(int i) { /* the choice i of the open pill taken (the official rules: a type resets its catalog and genre, a catalog its genre); 1 when it changed */
   if (i < 0 || i >= FL.n) return 0; int ch = 0;
   if (FL.which == 0) { if (i < 16 && strcmp(optType[i], FL.type)) { snprintf(FL.type, sizeof FL.type, "%s", optType[i]); FL.cat = 0; genre_default(); ch = 1; } }
