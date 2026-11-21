@@ -293,6 +293,15 @@ int main(int argc, char **argv) {
   pace_init();
 #endif
   plat_post_window(win);
+#ifdef SB_WINDOWS
+  glewExperimental = GL_TRUE;
+  GLenum glewStatus = glewInit();
+  if (glewStatus != GLEW_OK) {
+    fprintf(stderr, "[windows] GLEW initialization failed: %s\n", glewGetErrorString(glewStatus));
+    return 1;
+  }
+  glGetError(); /* GLEW may probe an unavailable extension on GL 2.1. */
+#endif
   SDL_StopTextInput();
   int dw, dh; SDL_GL_GetDrawableSize(win, &dw, &dh);
   fprintf(stderr, "[start] %s window %dx%d drawable %dx%d\n", plat_device_name(), w, h, dw, dh);
