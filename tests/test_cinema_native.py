@@ -63,6 +63,8 @@ static void gfx_ring_out(float x,float y,float w,float h,float r,float t,uint32_
 static float text_draw(const char *s,float x,float y,int px,int weight,uint32_t c,float tracking,float max,int align)
 {(void)s;(void)x;(void)y;(void)px;(void)weight;(void)c;(void)tracking;(void)max;(void)align;return 0;}
 static int icon_exists(const char *s){(void)s;return 1;}
+static void cinema_brand_draw(float x,float y,float w,float h)
+{(void)x;(void)y;(void)w;(void)h;}
 static void icon_draw(const char *s,float x,float y,float size,uint32_t c)
 {(void)s;(void)x;(void)y;(void)size;(void)c;}
 """
