@@ -9,7 +9,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 HARNESS = r"""
 #include "core/cinema_profile.h"
 #include <stdio.h>
+#include <string.h>
 int main(int argc,char**argv) {
+  if(argc==4 && !strcmp(argv[2],"set")) return cinema_profile_set_active(argv[1],argv[3])?0:2;
   if(argc!=2)return 3;
   const char* d=cinema_profile_data_dir(argv[1]);
   if(!d)return 2;
@@ -51,4 +53,16 @@ class ProfileDirectoryTests(unittest.TestCase):
             for bad in ("../oops","../../etc/passwd","a/b","test space","."*33):
                 self.assertNotEqual(run(bad).returncode,0,bad)
             self.assertFalse((p/"oops").exists())
+            def activate(name):
+                env=dict(os.environ)
+                env.pop("SB_CINEMA_PROFILE",None)
+                return subprocess.run([str(exe),str(p),"set",name],env=env,capture_output=True,text=True)
+            self.assertEqual(activate("sam").returncode,0)
+            self.assertEqual(run(None).stdout.strip(),str(p/"profiles/sam"))
+            self.assertEqual(run("bob").stdout.strip(),str(p/"profiles/bob"))
+            self.assertEqual((p/"cinema-active-profile").stat().st_mode & 0o777,0o600)
+            self.assertNotEqual(activate("../../escape").returncode,0)
+            self.assertEqual(run(None).stdout.strip(),str(p/"profiles/sam"))
+            self.assertEqual(activate("default").returncode,0)
+            self.assertEqual(run(None).stdout.strip(),str(p))
 if __name__=="__main__":unittest.main()
