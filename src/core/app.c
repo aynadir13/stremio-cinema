@@ -338,8 +338,18 @@ static void clock_draw(void) { float W = text_width("00:00", 38, 600, -0.6f); cl
 
 /* ---- the top bar: centred tabs, the corner icons, one pill that glides to the focused tab ---- */
 TopNav topNav = { .idx = NAV_HOME };
-static const char *chipLabel(int i) { return i == NAV_DISC ? T("Discover") : i == NAV_HOME ? T("Home") : T("Library"); }
+static const char *chipLabel(int i) {
+#ifdef SB_CINEMA_NATIVE
+  return i == NAV_DISC ? "Shows" : i == NAV_MOVIES ? "Movies" : i == NAV_LIB ? "My Netflix" : "Home";
+#else
+  return i == NAV_DISC ? T("Discover") : i == NAV_HOME ? T("Home") : T("Library");
+#endif
+}
 static int chipCur(int i) {
+#ifdef SB_CINEMA_NATIVE
+  if (i == NAV_MOVIES) return SCR == SCR_DISC && topNav.idx == NAV_MOVIES;
+  if (i == NAV_DISC) return SCR == SCR_DISC && topNav.idx != NAV_MOVIES;
+#endif
   Scr t = i == NAV_SEARCH ? SCR_SEARCH : i == NAV_SET ? SCR_SET : i == NAV_DISC ? SCR_DISC : i == NAV_HOME ? SCR_HOME : SCR_LIB;
   return t == SCR || (t == SCR_HOME && (SCR == SCR_DETAIL || SCR == SCR_SIM));
 }
@@ -367,15 +377,24 @@ static void topnav_paint(void) {
     tween_to(&topNav.cornerF[i], f, 0.2f, EASE_CSS_EASE); tween_to(&topNav.cornerS[i], f, 0.3f, EASE_OUT); tween_to(&topNav.dotK[i], f, 0.24f, EASE_STD); }
   tween_to(&topNav.setRot, chipFocused(NAV_SET) ? 90 : 0, 0.5f, EASE_OUT);
 }
-static Scr chipScr(int i) { return i == NAV_SEARCH ? SCR_SEARCH : i == NAV_SET ? SCR_SET : i == NAV_DISC ? SCR_DISC : i == NAV_HOME ? SCR_HOME : SCR_LIB; }
+static Scr chipScr(int i) {
+#ifdef SB_CINEMA_NATIVE
+  if (i == NAV_MOVIES) return SCR_DISC;
+#endif
+  return i == NAV_SEARCH ? SCR_SEARCH : i == NAV_SET ? SCR_SET : i == NAV_DISC ? SCR_DISC : i == NAV_HOME ? SCR_HOME : SCR_LIB;
+}
 void topnav_focus(void) { topNav.active = 1; topnav_paint(); }
 void topnav_switch(int i) {
-  i = i < 0 ? 0 : i > 4 ? 4 : i;
+  i = i < 0 ? 0 : i >= NAV_COUNT ? NAV_COUNT - 1 : i;
   if (i == topNav.idx && (app_is_board(SCR) || SCR == SCR_SEARCH || SCR == SCR_SET)) return;
   { Scr c0 = (SCR == SCR_DETAIL || SCR == SCR_SIM) ? SCR_HOME : SCR; int cs = -1; for (int j = 0; j < 5; j++) if (chipScr(j) == c0) cs = j;
     if (i == NAV_SEARCH || i == NAV_SET) { navf.kind = NAV_ZOOM; navf.x = topNav.chipX[i] + topNav.chipW[i] / 2; navf.y = 50; } else nav_slide(i >= cs ? 1 : -1); }
   topNav.idx = i; nback = 0; topNav.active = 1;
-  app_go(chipScr(i), NULL, 1); topNav.active = 1; topnav_paint();
+  app_go(chipScr(i), NULL, 1);
+#ifdef SB_CINEMA_NATIVE
+  if (i == NAV_DISC || i == NAV_MOVIES) board_cinema_disc_type(i == NAV_MOVIES);
+#endif
+  topNav.active = 1; topnav_paint();
 }
 static void topnav_flush(int drop) { if (topNav.want < 0) return; int w = topNav.want; topNav.want = -1; if (drop) return; topNav.idx = -1; topnav_switch(w); }
 static void topnav_enter_content(void) {
@@ -393,7 +412,15 @@ static int topnav_key(int k) {
   if (update_pill_key(k, topNav.idx == NAV_SET)) { topnav_paint(); return 1; }
   topnav_paint();
   if (k == K_LEFT || k == K_RIGHT) {
+#ifdef SB_CINEMA_NATIVE
+    static const int seq[6] = { NAV_SET, NAV_SEARCH, NAV_HOME, NAV_DISC, NAV_MOVIES, NAV_LIB };
+    int pos = 0; for (int j = 0; j < 6; j++) if (seq[j] == topNav.idx) pos = j;
+    pos += k == K_RIGHT ? 1 : -1;
+    if (pos < 0) pos = 0; if (pos > 5) pos = 5;
+    int i = seq[pos];
+#else
     int i = topNav.idx + (k == K_RIGHT ? 1 : -1); if (i < 0) i = 0; if (i > 4) i = 4;
+#endif
     if (i == topNav.idx) { nudge_start(&topNav.nudge, k); return 1; } /* the end of the bar */
     Scr t = chipScr(i);
     if ((t == SCR_SEARCH || t == SCR_SET) && SCR != t) { topnav_flush(1); topNav.idx = i; topnav_paint(); return 1; }
@@ -493,18 +520,17 @@ static void chip_act(int i, int b) { (void)b; Scr tg = chipScr(i); Scr cur = (SC
   else if (i != ci || !app_is_board(SCR)) { topNav.idx = -1; topnav_switch(i); }
   else topnav_enter_content(); }
 /* CINEMA_NATIVE_NAV_V2 */
-/* Positions derived from the user's 1200x675 reference. */
+/* Based on the original 1200x675 reference. Screens, live catalogs and
+ * search remain entirely native. Movies/Shows are actual Discover filters. */
 #ifdef SB_CINEMA_NATIVE
 static int cinema_nav_draw(void) {
   if (SCR == SCR_LOGIN || revpanel_page_k() >= 0.999f) return 0;
-  /* Real destinations are kept: Search, Home, Discover, Library, Settings.
-   * Shows/Movies need genuine catalog filters before they can be exposed. */
-  static const int order[5] = { NAV_SET, NAV_SEARCH, NAV_HOME, NAV_DISC, NAV_LIB };
-  static const float x[5] = { 46, 568, 625, 802, 1012 };
-  static const float w[5] = { 62, 54, 155, 185, 185 };
+  static const int order[6] = { NAV_SET, NAV_SEARCH, NAV_HOME, NAV_DISC, NAV_MOVIES, NAV_LIB };
+  static const float x[6] = { 46, 558, 625, 813, 979, 1155 };
+  static const float w[6] = { 62, 52, 155, 150, 155, 232 };
   const float cy = 72, h = 74;
   const uint32_t white = RGB(255,255,255), muted = RGB(235,225,226);
-  for (int j = 0; j < 5; ++j) {
+  for (int j = 0; j < 6; ++j) {
     int i = order[j]; float px = x[j], pw = w[j];
     int focused = chipFocused(i), selected = focused || chipCur(i);
     topNav.chipX[i] = px; topNav.chipW[i] = pw;
@@ -521,7 +547,6 @@ static int cinema_nav_draw(void) {
       if (focused && !chipCur(i)) gfx_ring_out(px, cy - h / 2, pw, h, h / 2, 3, white);
     }
   }
-  /* Own brand treatment: typographic red N, no copyrighted Netflix asset. */
   text_draw("N", SB_W - 80, 28, 62, 900, RGB(229,9,20), -3, 62, ALIGN_LEFT);
   hit_add_nav(SB_W - 95, 20, 82, 82, chip_focus, chip_act, NAV_HOME, 0);
   return 1;
