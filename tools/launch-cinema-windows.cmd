@@ -18,7 +18,6 @@ set "SB_SHOW=1"
 set "SB_WINDOW=1280x720"
 set "SB_REAL_VIDEO=0"
 set "SB_RES=720"
-set "SB_CINEMA_SKIP_PROFILE_PICKER=0"
 start "" /min "%CYGWIN_ROOT%\bin\XWin.exe" :0 -multiwindow -clipboard
 timeout /t 3 /nobreak >nul
 for %%I in ("%~dp0.") do set "CINEMA_DIR=%%~fI"
