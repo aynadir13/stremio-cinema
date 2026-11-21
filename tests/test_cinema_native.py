@@ -56,6 +56,8 @@ static void hit_add_nav(float x,float y,float w,float h,void(*f)(int,int),void(*
 {(void)x;(void)y;(void)w;(void)h;(void)f;(void)g;(void)i;(void)j;}
 static void gfx_rrect(float x,float y,float w,float h,float r,uint32_t c)
 {(void)x;(void)y;(void)w;(void)h;(void)r;(void)c;}
+static void gfx_ring(float x,float y,float w,float h,float r,float t,uint32_t c)
+{(void)x;(void)y;(void)w;(void)h;(void)r;(void)t;(void)c;}
 static void gfx_ring_out(float x,float y,float w,float h,float r,float t,uint32_t c)
 {(void)x;(void)y;(void)w;(void)h;(void)r;(void)t;(void)c;}
 static float text_draw(const char *s,float x,float y,int px,int weight,uint32_t c,float tracking,float max,int align)
