@@ -2,7 +2,12 @@ name: Native UI smoke tests
 on:
   push:
     branches: [feat/native-netflix-shell]
-  pull_request:
+    paths:
+      - 'src/**'
+      - 'tools/**'
+      - 'tests/**'
+      - '.github/workflows/cinema-native-checks.yml'
+  workflow_dispatch:
 jobs:
   syntax-and-invariants:
     runs-on: ubuntu-latest
