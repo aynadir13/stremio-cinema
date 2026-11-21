@@ -492,7 +492,8 @@ static void chip_act(int i, int b) { (void)b; Scr tg = chipScr(i); Scr cur = (SC
   if (tg == SCR_SEARCH || tg == SCR_SET) topnav_key(K_OK); /* opens it, the highlight inside */
   else if (i != ci || !app_is_board(SCR)) { topNav.idx = -1; topnav_switch(i); }
   else topnav_enter_content(); }
-/* CINEMA_NATIVE_NAV_V2: positions derived from the user's 1200x675 reference. */
+/* CINEMA_NATIVE_NAV_V2 */
+/* Positions derived from the user's 1200x675 reference. */
 #ifdef SB_CINEMA_NATIVE
 static int cinema_nav_draw(void) {
   if (SCR == SCR_LOGIN || revpanel_page_k() >= 0.999f) return 0;
