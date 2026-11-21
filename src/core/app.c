@@ -21,6 +21,9 @@
 #include "ui/glass.h"
 #include "screens/welcome.h"
 #include "ui/gfx.h"
+#ifdef SB_CINEMA_NATIVE
+#include "core/cinema_brand.h"
+#endif
 #include "ui/text.h"
 #include "ui/img.h"
 #include "ui/icon.h"
@@ -563,7 +566,7 @@ static int cinema_profile_key(int k) {
 static void cinema_profile_draw(void) {
   if (app_overlay != &cinemaProfiles) return;
   gfx_rect(0, 0, SB_W, SB_H, RGB(10, 11, 14));
-  text_draw("N", 75, 38, 70, 900, RGB(229,9,20), -3, 75, ALIGN_LEFT);
+  cinema_brand_draw(75, 38, 50, 74);
   text_draw("Qui regarde ?", SB_W / 2, 312, 67, 500,
             RGB(245,245,245), -1, SB_W, ALIGN_CENTER);
   for (int i = 0; i < 3; i++) {
@@ -616,7 +619,7 @@ static int cinema_nav_draw(void) {
       if (focused && !chipCur(i)) gfx_ring_out(px, cy - h / 2, pw, h, h / 2, 3, white);
     }
   }
-  text_draw("N", SB_W - 80, 28, 62, 900, RGB(229,9,20), -3, 62, ALIGN_LEFT);
+  cinema_brand_draw(SB_W - 80, 24, 52, 76);
   hit_add_nav(SB_W - 95, 20, 82, 82, chip_focus, chip_act, NAV_HOME, 0);
   return 1;
 }
