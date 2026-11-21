@@ -30,6 +30,8 @@ class CinemaNativeTests(unittest.TestCase):
         self.assertIsNotNone(m)
         stub = r"""
 #include <stdint.h>
+#define SB_W 1920
+#define ALIGN_LEFT 0
 #define SB_CINEMA_NATIVE 1
 #define RGB(r,g,b) ((uint32_t)0xff000000u)
 #define WHITE_A(a) ((uint32_t)0xffffffffu)
