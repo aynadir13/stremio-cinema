@@ -97,7 +97,13 @@ float app_hold_k(double since);        /* 0..1 of a hold begun then, on the same
 #define NAV_DISC 2
 #define NAV_HOME 3
 #define NAV_LIB 4
-typedef struct { int idx, active; int want; double swAt; Nudge nudge; Tween px, pw, pill; float pillShown; Tween cornerF[2], cornerS[2], dotK[2]; Tween setRot; float chipX[5], chipW[5]; int laidOut; } TopNav;
+#ifdef SB_CINEMA_NATIVE
+#define NAV_MOVIES 5 /* real Discover movie-filter tab; legacy indices unchanged */
+#define NAV_COUNT 6
+#else
+#define NAV_COUNT 5
+#endif
+typedef struct { int idx, active; int want; double swAt; Nudge nudge; Tween px, pw, pill; float pillShown; Tween cornerF[2], cornerS[2], dotK[2]; Tween setRot; float chipX[NAV_COUNT], chipW[NAV_COUNT]; int laidOut; } TopNav;
 extern TopNav topNav;
 void topnav_focus(void);
 void topnav_draw(void);
