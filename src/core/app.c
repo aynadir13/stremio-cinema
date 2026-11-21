@@ -517,6 +517,9 @@ static void chip_act(int i, int b) { (void)b; Scr tg = chipScr(i); Scr cur = (SC
   if (app_overlay) { app_overlay->key(K_BACK); app_overlay = NULL; }
   topnav_flush(1); topNav.active = 1; topNav.idx = i;
   if (tg == SCR_SEARCH || tg == SCR_SET) topnav_key(K_OK); /* opens it, the highlight inside */
+#ifdef SB_CINEMA_NATIVE
+  else if (i == NAV_DISC || i == NAV_MOVIES) { topNav.idx = -1; topnav_switch(i); }
+#endif
   else if (i != ci || !app_is_board(SCR)) { topNav.idx = -1; topnav_switch(i); }
   else topnav_enter_content(); }
 /* CINEMA_NATIVE_NAV_V2 */
