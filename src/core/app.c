@@ -492,7 +492,39 @@ static void chip_act(int i, int b) { (void)b; Scr tg = chipScr(i); Scr cur = (SC
   if (tg == SCR_SEARCH || tg == SCR_SET) topnav_key(K_OK); /* opens it, the highlight inside */
   else if (i != ci || !app_is_board(SCR)) { topNav.idx = -1; topnav_switch(i); }
   else topnav_enter_content(); }
+/* CINEMA_NATIVE_NAV_V1 */
+/* Native visual layer: all navigation, catalog, identity and playback routes
+ * remain owned by Stremio Origin. No HTML, network request or new GL pass. */
+#ifdef SB_CINEMA_NATIVE
+static int cinema_nav_draw(void) {
+  if (SCR == SCR_LOGIN || revpanel_page_k() >= 0.999f) return 0;
+  if (!topNav.laidOut) topnav_paint();
+  const float cy = 51.0f, h = 62.0f;
+  const uint32_t white = RGB(255,255,255), muted = RGB(225,217,217);
+  for (int i = 0; i < 5; ++i) {
+    float x = topNav.chipX[i], w = topNav.chipW[i];
+    int focused = chipFocused(i), selected = focused || chipCur(i);
+    hit_add_nav(x, cy - h / 2, w, h, chip_focus, chip_act, i, 0);
+    if (i == NAV_SET || i == NAV_SEARCH) {
+      if (focused) gfx_rrect(x + 7, cy - 29, w - 14, 58, 29, WHITE_A(46));
+      const char *ico = i == NAV_SEARCH ? "search" : "settings";
+      if (icon_exists(ico)) icon_draw(ico, x + (w - 31) / 2, cy - 15.5f, 31, white);
+      else text_draw(i == NAV_SEARCH ? "Search" : "Settings", x + w / 2, cy - 15, 22, 600, white, 0, w, ALIGN_CENTER);
+    } else {
+      if (selected) gfx_rrect(x, cy - h / 2, w, h, h / 2, white);
+      text_draw(chipLabel(i), x + w / 2, cy - 19, 29, selected ? 700 : 600,
+                selected ? RGB(15,15,15) : muted, -.2f, w - 20, ALIGN_CENTER);
+      if (focused && !chipCur(i)) gfx_ring_out(x, cy - h / 2, w, h, h / 2, 3, white);
+    }
+  }
+  return 1;
+}
+#endif /* SB_CINEMA_NATIVE */
+
 void topnav_draw(void) {
+#ifdef SB_CINEMA_NATIVE
+  if (cinema_nav_draw()) return;
+#endif
   if (!topNav.laidOut) topnav_paint();
   int signin = SCR == SCR_LOGIN; float pg = revpanel_page_k(); /* the reviews risen into the title page: the bar goes up and away for its buttons */
   if (pg >= 0.999f) return;
