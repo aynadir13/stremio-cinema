@@ -110,7 +110,15 @@ static void prep_free(Row *r) { free(r->cp); free(r->cpSt); r->cp = NULL; r->cpS
 static void row_clear(Row *r) { itemlist_clear(&r->items); prep_free(r); free(r->gone); r->gone = NULL; r->ngone = 0; }
 static Row *row_add(Board *b, const char *title, int wide, int label) {
   if (b->n >= MAXROWS) return NULL; Row *r = &b->rows[b->n++]; row_clear(r); memset(r, 0, sizeof *r); prep_free(r);
-  snprintf(r->title, sizeof r->title, "%s", title); r->wide = wide; r->label = label; r->hidden = 1; r->closing = 0; r->hk = 1; r->popCol = -1; tween_set(&r->off, 0); tween_set(&r->a, 1); return r;
+  snprintf(r->title, sizeof r->title, "%s", title);
+#ifdef SB_CINEMA_NATIVE
+  /* Use actual catalog backdrops for the reference's 16:9 cards, rather
+   * than stretching portrait posters into a landscape slot. */
+  r->wide = b->kind == 0 ? 1 : wide;
+#else
+  r->wide = wide;
+#endif
+  r->label = label; r->hidden = 1; r->closing = 0; r->hk = 1; r->popCol = -1; tween_set(&r->off, 0); tween_set(&r->a, 1); return r;
 }
 static void slide_row(Row *r) {
   if (r->grid) { tween_to(&r->off, 0, 0.18f, EASE_ROW); if (r->popCol != r->col) { r->popCol = r->col; focus_pop(&r->pop); } return; } /* (a grid line fits the screen: it never slides) */
