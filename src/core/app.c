@@ -1,4 +1,7 @@
 #include "core/app.h"
+#ifdef SB_CINEMA_NATIVE
+#include "core/cinema_profile.h"
+#endif
 #include "core/away.h"
 #include "core/traktwatch.h"
 #include "core/scrobble.h"
@@ -513,7 +516,10 @@ static void corner_draw(int i, const char *icon, uint32_t dot, float rot) {
   if (sf < 0.999f) gfx_opacity_pop();
 }
 static void chip_focus(int i, int b) { (void)b; if (!topNav.active || topNav.idx != i) { topnav_flush(1); if (!topNav.active) { topNav.active = 1; } topNav.idx = i; topnav_paint(); } }
-static void chip_act(int i, int b) { (void)b; Scr tg = chipScr(i); Scr cur = (SCR == SCR_DETAIL || SCR == SCR_SIM) ? SCR_HOME : SCR; int ci = -1; for (int j = 2; j < 5; j++) if (chipScr(j) == cur) ci = j;
+static void chip_act(int i, int b) { (void)b;
+#ifdef SB_CINEMA_NATIVE
+  if (i == NAV_SET) { cinema_profile_open(); return; }
+#endif Scr tg = chipScr(i); Scr cur = (SCR == SCR_DETAIL || SCR == SCR_SIM) ? SCR_HOME : SCR; int ci = -1; for (int j = 2; j < 5; j++) if (chipScr(j) == cur) ci = j;
   if (app_overlay) { app_overlay->key(K_BACK); app_overlay = NULL; }
   topnav_flush(1); topNav.active = 1; topNav.idx = i;
   if (tg == SCR_SEARCH || tg == SCR_SET) topnav_key(K_OK); /* opens it, the highlight inside */
@@ -522,6 +528,57 @@ static void chip_act(int i, int b) { (void)b; Scr tg = chipScr(i); Scr cur = (SC
 #endif
   else if (i != ci || !app_is_board(SCR)) { topNav.idx = -1; topnav_switch(i); }
   else topnav_enter_content(); }
+/* Native Who's watching screen. The three slots are real isolated data
+ * contexts: picking one writes only the active ID and restarts BEFORE store_init.
+ * Settings remain available via the remote's red shortcut. */
+#ifdef SB_CINEMA_NATIVE
+static int cinemaProfileIdx;
+static Screen cinemaProfiles;
+static const char *const cinemaProfileId[3] = {"default", "sam", "enfants"};
+static const char *const cinemaProfileName[3] = {"Alex", "Sam", "Enfants"};
+static const uint32_t cinemaProfileColor[3] = {0xff684f85u, 0xff276a60u, 0xffaf8735u};
+static void cinema_profile_open(void) {
+  cinemaProfileIdx = 0;
+  app_overlay_keep(&cinemaProfiles);
+  app_overlay = &cinemaProfiles;
+}
+static void cinema_profile_choose(void) {
+  if (!cinema_activate_profile(cinemaProfileId[cinemaProfileIdx])) {
+    toast("Impossible de changer de profil", 3000, NULL);
+  }
+}
+static void cinema_profile_focus(int i, int b) { (void)b; if (i >= 0 && i < 3) cinemaProfileIdx = i; }
+static void cinema_profile_act(int i, int b) { (void)b; cinema_profile_focus(i, 0); cinema_profile_choose(); }
+static int cinema_profile_key(int k) {
+  if (k == K_BACK) { app_overlay = NULL; return 1; }
+  if (k == K_LEFT && cinemaProfileIdx > 0) cinemaProfileIdx--;
+  if (k == K_RIGHT && cinemaProfileIdx < 2) cinemaProfileIdx++;
+  if (k == K_OK) cinema_profile_choose();
+  return 1;
+}
+static void cinema_profile_draw(void) {
+  if (app_overlay != &cinemaProfiles) return;
+  gfx_rect(0, 0, SB_W, SB_H, RGB(10, 11, 14));
+  text_draw("N", 75, 38, 70, 900, RGB(229,9,20), -3, 75, ALIGN_LEFT);
+  text_draw("Qui regarde ?", SB_W / 2, 312, 67, 500,
+            RGB(245,245,245), -1, SB_W, ALIGN_CENTER);
+  for (int i = 0; i < 3; i++) {
+    const float x = 620 + i * 255.0f, y = 470, w = 180;
+    gfx_rrect(x, y, w, w, 10, cinemaProfileColor[i]);
+    if (cinemaProfileIdx == i) gfx_ring_out(x, y, w, w, 10, 5, RGB(255,255,255));
+    char initial[2] = {cinemaProfileName[i][0], 0};
+    text_draw(initial, x + 90, y + 52, 90, 800, RGB(255,255,255), 0, w, ALIGN_CENTER);
+    text_draw(cinemaProfileName[i], x + 90, y + w + 22, 30, 600,
+              cinemaProfileIdx == i ? RGB(255,255,255) : RGB(165,165,165),
+              0, 240, ALIGN_CENTER);
+    hit_add(x - 10, y - 10, w + 20, w + 80, cinema_profile_focus, cinema_profile_act, i, 0);
+  }
+  text_draw("GÉRER LES PROFILS", SB_W / 2, 810, 23, 500,
+            RGB(170,170,170), 2, SB_W, ALIGN_CENTER);
+}
+static Screen cinemaProfiles = { .key = cinema_profile_key, .draw = cinema_profile_draw };
+#endif
+
 /* CINEMA_NATIVE_NAV_V2 */
 /* Based on the original 1200x675 reference. Screens, live catalogs and
  * search remain entirely native. Movies/Shows are actual Discover filters. */
@@ -540,9 +597,14 @@ static int cinema_nav_draw(void) {
     hit_add_nav(px, cy - h / 2, pw, h, chip_focus, chip_act, i, 0);
     if (i == NAV_SET || i == NAV_SEARCH) {
       if (focused) gfx_rrect(px + 5, cy - 34, pw - 10, 68, 34, WHITE_A(42));
-      const char *ico = i == NAV_SEARCH ? "search" : "settings";
-      if (icon_exists(ico)) icon_draw(ico, px + (pw - 30) / 2, cy - 15, 30, white);
-      else text_draw(i == NAV_SEARCH ? "Search" : "Settings", px + pw / 2, cy - 13, 19, 600, white, 0, pw, ALIGN_CENTER);
+      if (i == NAV_SET) {
+        gfx_rrect(px + 7, cy - 26, 45, 52, 6, RGB(95,69,116));
+        text_draw("A", px + 29, cy - 21, 39, 800, white, 0, 45, ALIGN_CENTER);
+      } else {
+        /* Direct vector primitives: no missing icon file or truncated label. */
+        gfx_ring(px + 10, cy - 17, 29, 29, 14.5f, 3.5f, white);
+        text_draw("/", px + 35, cy + 3, 28, 700, white, 0, 25, ALIGN_LEFT);
+      }
     } else {
       if (selected) gfx_rrect(px, cy - h / 2, pw, h, h / 2, white);
       text_draw(chipLabel(i), px + pw / 2, cy - 19, 31, selected ? 700 : 600,
@@ -1058,6 +1120,14 @@ void app_tick_behind(float dt) {
 }
 void app_tick(float dt) {
   DT = dt; NOW = SDL_GetTicks() / 1000.0; FRAME++; away_tick();
+#ifdef SB_CINEMA_NATIVE
+  static int cinemaPromptShown;
+  if (!cinemaPromptShown && app_splash_done && !app_overlay && !player_open()) {
+    cinemaPromptShown = 1;
+    if (!getenv("SB_CINEMA_SKIP_PROFILE_PICKER") && !app_launch_cast)
+      cinema_profile_open();
+  }
+#endif
   ptr_idle();
   ptr_frame();
   { static int swelled; if (app_hold_progress() > 0 && !swelled) { swelled = 1; sound_play(SND_HOLD); } else if (!okHold.down) swelled = 0; } /* holding OK: a low swell as the line starts round */
