@@ -1,0 +1,54 @@
+name: Windows native Cinema preview (experimental)
+on:
+  push:
+    branches: [feat/native-netflix-shell]
+    paths:
+      - 'src/**'
+      - 'tools/**'
+      - '.github/workflows/cinema-windows-preview.yml'
+  workflow_dispatch:
+
+jobs:
+  cygwin-windows-exe:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Cygwin compiler and native UI dependencies
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Invoke-WebRequest -Uri 'https://cygwin.com/setup-x86_64.exe' -OutFile "$env:RUNNER_TEMP\cygwin-setup.exe"
+          $args = @('-q','-n','-N','-d','-R','C:\cygwin64','-s','https://mirrors.kernel.org/sourceware/cygwin','-P',
+            'gcc-core,gcc-g++,binutils,make,python3,libSDL2-devel,libGLEW-devel,libGL-devel,libcurl-devel,zlib-devel,libiconv-devel,libass-devel,libwebp-devel,pkg-config,xorg-server,xinit')
+          $p = Start-Process -FilePath "$env:RUNNER_TEMP\cygwin-setup.exe" -ArgumentList $args -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { throw "Cygwin setup failed: $($p.ExitCode)" }
+
+      - name: Compile genuine native C/SDL2/OpenGL Windows executable
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = (& 'C:\cygwin64\bin\cygpath.exe' -u "$env:GITHUB_WORKSPACE").Trim()
+          $cmd = "cd '$root' && export SB_SHOW=1 SB_WINDOW=1280x720 SB_REAL_VIDEO=0 && bash tools/build-cinema.sh windows"
+          & 'C:\cygwin64\bin\bash.exe' --login -c $cmd
+          if ($LASTEXITCODE -ne 0) { throw "Native Windows compiler failed: $LASTEXITCODE" }
+          if (!(Test-Path 'build/windows/StremioCinema.exe')) { throw 'No native PE executable built' }
+
+      - name: Package executable, assets and Windows launcher
+        run: |
+          New-Item -ItemType Directory -Force -Path 'dist/windows-preview' | Out-Null
+          Copy-Item 'build/windows/StremioCinema.exe' 'dist/windows-preview/StremioCinema.exe'
+          Copy-Item 'assets' 'dist/windows-preview/assets' -Recurse
+          Copy-Item 'tools/launch-cinema-windows.cmd' 'dist/windows-preview/Launch-Stremio-Cinema.cmd'
+          Copy-Item 'docs/WINDOWS_PREVIEW.md' 'dist/windows-preview/README-Windows.md'
+          Get-ChildItem 'dist/windows-preview/StremioCinema.exe' | Format-Table Name,Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StremioCinema-Windows-Native-720p-experimental
+          path: dist/windows-preview/
+          retention-days: 14
