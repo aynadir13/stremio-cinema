@@ -580,8 +580,8 @@ static void cinema_profile_draw(void) {
               0, 240, ALIGN_CENTER);
     hit_add(x - 10, y - 10, w + 20, w + 80, cinema_profile_focus, cinema_profile_act, i, 0);
   }
-  text_draw("GÉRER LES PROFILS", SB_W / 2, 810, 23, 500,
-            RGB(170,170,170), 2, SB_W, ALIGN_CENTER);
+  text_draw("Flèches pour choisir   ·   Entrée pour ouvrir   ·   Retour pour fermer",
+            SB_W / 2, 810, 22, 400, RGB(160,160,160), 0, SB_W, ALIGN_CENTER);
 }
 static Screen cinemaProfiles = { .key = cinema_profile_key, .draw = cinema_profile_draw };
 #endif
