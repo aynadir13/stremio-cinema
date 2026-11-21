@@ -28,6 +28,19 @@
 
 #define MAXROWS 128 /* every installed catalog has its row (the answers' tokens carry the row in 7 bits) */
 #define FEAT_ROW (MAXROWS - 1) /* a token's row for a spotlight title */
+/* Cinematic layout: reference image 1200x675 mapped to the 1920x1080
+ * logical scene. Artwork and titles still come from real Stremio catalogs. */
+#ifdef SB_CINEMA_NATIVE
+#define ROWS_TOP 972.0f
+#define HERO_X 78.0f
+#define HERO_Y 665.0f
+#define HERO_W (SB_W * 0.58f)
+#define RC_W 356.0f
+#define RC_H 201.0f
+#define RW_W 356.0f
+#define RW_H 201.0f
+#define RGAP 14.0f
+#else
 #define ROWS_TOP 478.0f             /* a focused row ends ~80 px above the bottom edge */
 #define HERO_X 48.0f
 #define HERO_Y 100.0f
@@ -38,6 +51,7 @@
 #define RW_W 500.0f
 #define RW_H 281.0f
 #define RGAP 28.0f
+#endif
 #define GC_W 200.0f          /* Discover's grid: smaller than a row's posters (180 x 270 until 2026-11-08: a touch bigger, the user; still 8 a line) */
 #define GC_H 300.0f
 #define FILT_H 104.0f        /* Discover's filter strip (it stays put above the grid) */
@@ -914,7 +928,11 @@ static void row_draw(Board *b, Row *r, int ri, float y, int near, float rowA) {
   if (!r->locAt && r->items.n && near) r->locAt = app_now();
   gfx_offset_push(nudge_x(&r->nudge), nudge_y(&r->nudge) + rx);
   if (ta < 1) gfx_opacity_push(ta);
+#ifdef SB_CINEMA_NATIVE
+  if (!r->grid) text_draw(T(r->title), rtl ? SB_W - 48 : 48, y + 18, 29, 700, RGB(0xb0, 0xa7, 0xa8), -0.3f, SB_W - 96, rtl ? ALIGN_RIGHT : ALIGN_LEFT);
+#else
   if (!r->grid) text_draw(T(r->title), rtl ? SB_W - 52 : 52, y + 18, 31, 700, RGB(0xe9, 0xe9, 0xee), -0.3f, SB_W - 104, rtl ? ALIGN_RIGHT : ALIGN_LEFT);
+#endif
   if (ta < 1) gfx_opacity_pop();
   float cy = r->grid ? y + 18 : y + 18 + lh + 26, step = step_of(r), off = r->off.v, cw = card_w(r), ch = card_h(r);
   int i0 = (int)(off / step) - 1, i1 = (int)((off + SB_W - 48) / step) + 1; if (i0 < 0) i0 = 0; if (i1 > r->items.n - 1) i1 = r->items.n - 1;
