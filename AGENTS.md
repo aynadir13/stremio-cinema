@@ -1,4 +1,4 @@
-# Stremio Cinema — development instructions
+# Origin UI Lab — development instructions (working title)
 
 This repository is a fork of [Stremio Origin](https://github.com/stremio-origin/webos), an unofficial native Stremio client for LG webOS.
 
@@ -25,3 +25,7 @@ LG OLED55A16LA, webOS 6.6, ARMv7. The existing source builds via `tools/build.sh
 4. Validate complete functionality and native performance on both the Mac build and an actual LG device.
 
 **Test truthfully:** never label a design mock-up, a syntax-only check, or an unrun patch as a fully working LG application.
+
+## Visual identity decision
+
+The owner selected a red N with crossed red bones as the eventual project emblem. Do not substitute the temporary name or unrelated logo. Before public distribution, review branding rights and provide an original, safely usable asset. The repository slug `stremio-cinema` is historical and **not** the final product name.
