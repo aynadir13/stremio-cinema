@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/**'
       - 'tools/**'
+      - '.gitattributes'
       - '.github/workflows/cinema-windows-preview.yml'
   workflow_dispatch:
 
