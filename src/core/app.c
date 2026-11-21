@@ -747,10 +747,23 @@ void bg_draw(void) {
   if (z != 1) gfx_scale_push(z, z, SB_W / 2, SB_H * 0.37f);
   if (under && btr_hold_gen() && bgGen == btr_hold_gen()) a = 0; /* a key stopped the trailer: its own backdrop never comes back, its last frame stays until the next title's */
   if (a <= 0.001f) { if (z != 1) gfx_scale_pop(); return; }
+#ifdef SB_CINEMA_NATIVE
+  /* The reference uses a contained, wide cinematic feature between the
+   * 89px header and the first catalog rail (coordinates scaled to 1080p).
+   * Clip only the backdrop on Home/Discover; do not clip UI or playback. */
+  int cinemaFramed = app_is_board(SCR) && !under;
+  if (cinemaFramed) {
+    gfx_rect(0, 0, SB_W, SB_H, RGB(20, 5, 8));
+    gfx_clip_push(46, 142, SB_W - 92, 783);
+  }
+#endif
   if (under && btr_hold_gen()) bg_layer_draw(&bgL[bgTop], a); /* over the trailer's frame: the new one alone, by the cover's fade */
   else if (bgFadingIn && bgFade.on) { bg_layer_draw(&bgL[!bgTop], a); bg_layer_draw(&bgL[bgTop], k * a); }
   else if (bgFadingOut && bgFade.on) { bg_layer_draw(&bgL[!bgTop], (1 - k) * a); bg_layer_draw(&bgL[bgTop], (1 - k) * a); }
   else bg_layer_draw(&bgL[bgTop], a);
+#ifdef SB_CINEMA_NATIVE
+  if (cinemaFramed) gfx_clip_pop();
+#endif
   if (z != 1) gfx_scale_pop();
 }
 /* the window is cleared transparent while the background trailer shows through it */
