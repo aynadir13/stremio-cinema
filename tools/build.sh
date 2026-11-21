@@ -41,6 +41,9 @@ case "$TARGET" in
   *) echo "unknown target $TARGET"; exit 1;;
 esac
 OPT="-O2 -fno-strict-aliasing -ffunction-sections -fdata-sections"
+# Windows preview builds the large third-party C/C++ sources locally: moderate
+# optimisation keeps the first CI compilation practical without touching webOS.
+[ "$TARGET" = windows ] && OPT="-O1 -fno-strict-aliasing -ffunction-sections -fdata-sections"
 if [ -n "${SB_FP:-}" ]; then OPT="$OPT -fno-omit-frame-pointer -marm"; fi  # SB_FP=1: frame pointers for the profiler
 if [ -n "${SB_ASAN:-}" ]; then OPT="-O1 -g -fsanitize=address -fno-omit-frame-pointer"; B="$B-asan"; mkdir -p "$B/tp" "$B/obj"; fi  # SB_ASAN=1 tools/build.sh mac: a sanitizer build in build/mac-asan
 APPID="${APPID:-tv.stremioorigin.app}"
