@@ -1,6 +1,8 @@
 @echo off
 setlocal
 set "CYGWIN_ROOT=C:\cygwin64"
+REM Native Windows PE loader needs the Cygwin DLL directory in PATH.
+set "PATH=%CYGWIN_ROOT%\bin;%PATH%"
 if not exist "%CYGWIN_ROOT%\bin\bash.exe" (
   echo [Cinema] Cygwin est absent de C:\cygwin64
   pause
