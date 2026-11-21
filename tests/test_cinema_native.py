@@ -8,6 +8,8 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 APP = (ROOT / "src/core/app.c").read_text()
 BUILD = (ROOT / "tools/build.sh").read_text()
+BOARD = (ROOT / "src/screens/board.c").read_text()
+BRAND = (ROOT / "src/core/cinema_brand.h").read_text()
 
 class CinemaNativeTests(unittest.TestCase):
     def test_opt_in_native_renderer(self):
@@ -15,6 +17,15 @@ class CinemaNativeTests(unittest.TestCase):
         self.assertEqual(APP.count("if (cinema_nav_draw()) return;"), 1)
         self.assertIn("#ifdef SB_CINEMA_NATIVE", APP)
         self.assertIn("hit_add_nav(", APP)
+    def test_reference_v03_is_a_real_native_scene(self):
+        self.assertIn('#define ROWS_TOP 972.0f', BOARD)
+        self.assertIn('#define RC_W 356.0f', BOARD)
+        self.assertIn('gfx_image(l->baked.tex, x, y, w, h, 30,', APP)
+        self.assertIn('board_cinema_disc_type(int movie)', BOARD)
+        self.assertIn('r->wide = b->kind == 0 ? 1 : wide', BOARD)
+        self.assertIn('cinema_profile_open(void)', APP)
+        self.assertIn('cinema_brand_draw(', APP)
+        self.assertIn('static const char a[]', BRAND)
     def test_existing_screen_routing_preserved(self):
         self.assertIn("app_go(chipScr(i), NULL, 1)", APP)
         self.assertIn("app_is_board(SCR)", APP)
