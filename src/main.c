@@ -11,6 +11,7 @@
 #include <locale.h>
 #include <unistd.h>
 #include <signal.h>
+#include "core/cinema_profile.h"
 #ifdef SB_MAC
 #include <execinfo.h>
 static void on_alarm(int sig) { (void)sig; void *fr[48]; int n = backtrace(fr, 48); backtrace_symbols_fd(fr, n, 2); _exit(3); }
@@ -232,7 +233,15 @@ int main(int argc, char **argv) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 #endif
   gl_config(getenv("SB_GLCFG") ? atoi(getenv("SB_GLCFG")) : 0); /* 0 RGBA8, 1 RGB8 (no alpha), 2 RGB565: which surface the compositor takes without a copy */
-  store_init(plat_data_dir()); /* before the window: the drawing size is a setting */
+#ifdef SB_CINEMA_NATIVE
+  /* Profile choice is resolved BEFORE reading authentication or preferences.
+   * Never switch a live account in place: a restart is required. */
+  const char *cinema_dir = cinema_profile_data_dir(plat_data_dir());
+  if (!cinema_dir) { fprintf(stderr, "[cinema] refusing unsafe profile startup\\n"); return 2; }
+  store_init(cinema_dir);
+#else
+  store_init(plat_data_dir()); /* original Stremio Origin path */
+#endif
   { extern void supportcard_start(int autoReload); supportcard_start(argc > 1 && argv[1] && strstr(argv[1], "autoReload") != NULL); } /* (a real start counted for the support card; the TV relaunching it on its own is not one) */
   int memMb = plat_mem_total_mb();
   int w, h; Uint32 flags; plat_window_size(&w, &h, &flags);
