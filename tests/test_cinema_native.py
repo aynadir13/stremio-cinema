@@ -41,9 +41,10 @@ class CinemaNativeTests(unittest.TestCase):
 #define NAV_DISC 2
 #define NAV_HOME 3
 #define NAV_LIB 4
+#define NAV_MOVIES 5
 #define SCR_LOGIN 0
 int SCR=1;
-struct { float chipX[5],chipW[5]; int laidOut; } topNav;
+struct { float chipX[6],chipW[6]; int laidOut; } topNav;
 static float revpanel_page_k(void){return 0;}
 static void topnav_paint(void){}
 static int chipFocused(int n){return n==3;}
