@@ -15,3 +15,26 @@ jobs:
           python-version: '3.12'
       - run: python -m unittest discover -s tests -p 'test_cinema_native.py' -v
       - run: bash -n tools/build.sh tools/build-cinema.sh tools/package.sh
+  mac-native-build:
+    runs-on: macos-15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SDL2 headers and libraries
+        run: brew install sdl2
+      - name: Build original C/SDL2/OpenGL Mac target with Cinema skin
+        env:
+          CINEMA_UI: '1'
+          APPID: fr.edo.originuilab.dev
+        run: |
+          export MACSDL="$(brew --prefix sdl2)"
+          bash tools/build-cinema.sh mac
+          test -x build/mac/stremioorigin
+      - name: Upload native Mac executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: origin-ui-lab-macos-native
+          path: build/mac/stremioorigin
+          if-no-files-found: error
+          retention-days: 7
