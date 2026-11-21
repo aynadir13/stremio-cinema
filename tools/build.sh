@@ -96,11 +96,29 @@ if [ ! -f "$B/tp/libtp.a" ]; then
   done
   $CC $TPQ -c "$TP/cjson/cJSON.c" -o "$B/tp/cJSON.o"
   $CC $TPQ -c "$TP/qrcodegen/qrcodegen.c" -o "$B/tp/qrcodegen.o"
+  # This subset intentionally omits libwebp's SSE2 implementations.
+  # On x86_64 Windows the dispatcher must not reference those absent symbols.
+  WEBP_CPU_FLAGS=""
+  [ "$TARGET" = windows ] && WEBP_CPU_FLAGS="-U__SSE2__ -U__SSE4_1__"
   for f in "$TP"/webp/src/dec/*.c "$TP"/webp/src/dsp/*.c "$TP"/webp/src/utils/*.c; do   # libwebp, decoder only
     case "$(basename "$f")" in *enc*|*writer*|*quant_levels_utils*|*_sse*|*_msa*|*_mips*) continue;; esac
-    $WEBPCC $TPQ -DWEBP_REDUCE_CSP -I$TP/webp -c "$f" -o "$B/tp/webp_$(basename "${f%.c}").o"
+    $WEBPCC $TPQ $WEBP_CPU_FLAGS -DWEBP_REDUCE_CSP -I$TP/webp -c "$f" -o "$B/tp/webp_$(basename "${f%.c}").o"
   done
   $AR rcs "$B/tp/libtp.a" "$B"/tp/*.o
+  [ "$TARGET" = windows ] && touch "$B/tp/.webp-no-simd"
+fi
+
+# A previously cached Cygwin archive may contain an x86 SIMD dispatch that
+# refers to omitted SSE2 objects. Rebuild only WebP objects, keep all other
+# cached third-party objects and rearchive once.
+if [ "$TARGET" = windows ] && [ ! -f "$B/tp/.webp-no-simd" ]; then
+  echo "== Windows WebP scalar decoder cache upgrade"
+  for f in "$TP"/webp/src/dec/*.c "$TP"/webp/src/dsp/*.c "$TP"/webp/src/utils/*.c; do
+    case "$(basename "$f")" in *enc*|*writer*|*quant_levels_utils*|*_sse*|*_msa*|*_mips*) continue;; esac
+    $WEBPCC -w $OPT -U__SSE2__ -U__SSE4_1__ -DWEBP_REDUCE_CSP -I$TP/webp -c "$f" -o "$B/tp/webp_$(basename "${f%.c}").o"
+  done
+  $AR rcs "$B/tp/libtp.a" "$B"/tp/*.o
+  touch "$B/tp/.webp-no-simd"
 fi
 
 if [ ! -f "$B/tp/libass.a" ]; then   # libass (styled ASS / SSA subtitles) on the FreeType, HarfBuzz and FriBidi above, no system font provider
