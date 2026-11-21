@@ -522,7 +522,8 @@ static void cinema_profile_open(void);
 static void chip_act(int i, int b) { (void)b;
 #ifdef SB_CINEMA_NATIVE
   if (i == NAV_SET) { cinema_profile_open(); return; }
-#endif Scr tg = chipScr(i); Scr cur = (SCR == SCR_DETAIL || SCR == SCR_SIM) ? SCR_HOME : SCR; int ci = -1; for (int j = 2; j < 5; j++) if (chipScr(j) == cur) ci = j;
+#endif
+  Scr tg = chipScr(i); Scr cur = (SCR == SCR_DETAIL || SCR == SCR_SIM) ? SCR_HOME : SCR; int ci = -1; for (int j = 2; j < 5; j++) if (chipScr(j) == cur) ci = j;
   if (app_overlay) { app_overlay->key(K_BACK); app_overlay = NULL; }
   topnav_flush(1); topNav.active = 1; topNav.idx = i;
   if (tg == SCR_SEARCH || tg == SCR_SET) topnav_key(K_OK); /* opens it, the highlight inside */
