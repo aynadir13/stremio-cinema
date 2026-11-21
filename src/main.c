@@ -13,8 +13,14 @@
 #include <signal.h>
 #include "core/cinema_profile.h"
 #ifdef SB_MAC
+#ifdef SB_WINDOWS
+/* Cygwin's runtime does not ship macOS execinfo.h; retain fatal signal
+ * reporting without the Mac-specific stack trace. */
+static void on_alarm(int sig) { fprintf(stderr, "[windows] fatal signal %d\n", sig); _exit(128 + sig); }
+#else
 #include <execinfo.h>
 static void on_alarm(int sig) { (void)sig; void *fr[48]; int n = backtrace(fr, 48); backtrace_symbols_fd(fr, n, 2); _exit(3); }
+#endif
 static volatile int profN; /* the profiler is the TV's */
 #else
 #include <ucontext.h>
