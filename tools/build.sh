@@ -23,6 +23,13 @@ case "$TARGET" in
     TFLAGS="-DSB_MAC=1 -I$MACSDL/include -I$MACSDL/include/SDL2"
     LIBS="$($MACSDL/bin/sdl2-config --static-libs 2>/dev/null || $MACSDL/bin/sdl2-config --libs) -Wl,-framework,OpenGL -Wl,-framework,AVFoundation -Wl,-framework,CoreMedia -Wl,-framework,CoreVideo -Wl,-framework,Foundation -Wl,-framework,QuartzCore -lcurl -liconv -lz"   # (AVFoundation: the preview plays the streams)
     PLAT=mac ;;
+  windows)
+    # Cygwin POSIX compatibility build: Windows PE .exe with SDL2/OpenGL.
+    # This is a native UI preview, not a standalone MSVC/MinGW player.
+    CC="gcc"; CXX="g++"; AR="ar"; WEBPCC="gcc"
+    TFLAGS="-DSB_MAC=1 -DSB_WINDOWS=1 -I/usr/include/SDL2"
+    LIBS="$(sdl2-config --libs) -lGLEW -lGL -lcurl -lz -liconv -lpthread"
+    PLAT=windows ;;
   webos)
     CC="$ZIG cc -target arm-linux-gnueabi.2.12 -mcpu=cortex_a9 -mfloat-abi=softfp"
     WEBPCC="$ZIG cc -target arm-linux-gnueabi.2.12 -mcpu=cortex_a9-neon -mfloat-abi=softfp"   # libwebp's NEON paths break this compiler's backend: plain C there
@@ -111,8 +118,9 @@ for f in "$ROOT"/src/core/*.c "$ROOT"/src/ui/*.c "$ROOT"/src/screens/*.c "$ROOT"
   fi
   OBJS+=("$o")
 done
-if [ "$TARGET" = mac ]; then
-  $CXX $OPT -o "$B/stremioorigin" "${OBJS[@]}" "$B/tp/libass.a" "$B/tp/libtp.a" $LIBS
+if [ "$TARGET" = mac ] || [ "$TARGET" = windows ]; then
+  EXE="stremioorigin"; [ "$TARGET" = windows ] && EXE="StremioCinema.exe"
+  $CXX $OPT -o "$B/$EXE" "${OBJS[@]}" "$B/tp/libass.a" "$B/tp/libtp.a" $LIBS
 else
   $CXX $OPT -Wl,--gc-sections -Wl,-T,"$ROOT/tools/webos-relocs.ld" -o "$B/stremioorigin.dbg" "${OBJS[@]}" "$B/tp/libass.a" "$B/tp/libtp.a" $LIBS   # symbols kept: crash addresses resolve against it
   python3 "$ROOT/tools/relocs-check.py" "$B/stremioorigin.dbg"   # (webOS 3 starts it only with them together)
@@ -120,6 +128,7 @@ else
   BID=$(LC_ALL=C grep -ao 'SBBUILDID:[0-9a-f]\{32\}' "$B/stremioorigin.dbg" | head -1 | cut -c11-22)   # every build's debug copy kept by its id (the last 40): a crash from any build installed can be named
   if [ -n "$BID" ]; then mkdir -p "$ROOT/dist/dbg/builds"; cp "$B/stremioorigin.dbg" "$ROOT/dist/dbg/builds/$BID.dbg"; ls -t "$ROOT"/dist/dbg/builds/*.dbg | tail -n +41 | xargs rm -f; fi
 fi
-ls -l "$B/stremioorigin" | awk '{printf "%s  %.1f MB\n", $NF, $5/1048576}'
-[ $RUN = 1 ] && [ "$TARGET" = mac ] && exec "$B/stremioorigin" "$ROOT/assets"
+OUT="$B/stremioorigin"; [ "$TARGET" = windows ] && OUT="$B/StremioCinema.exe"
+ls -l "$OUT" | awk '{printf "%s  %.1f MB\n", $NF, $5/1048576}'
+[ "$RUN" = 1 ] && { [ "$TARGET" = mac ] || [ "$TARGET" = windows ]; } && exec "$OUT" "$ROOT/assets"
 exit 0
