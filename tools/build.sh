@@ -72,6 +72,13 @@ print('== keys built in: %s' % (', '.join(n for n in ('TRAKT_CLIENT_ID', 'TMDB_A
 PY
 CFLAGS="$CFLAGS -I$B"
 
+# Fast Windows portability check: detect platform/header breakage BEFORE the
+# expensive FreeType/HarfBuzz/WebP third-party compilation.
+if [ "$TARGET" = windows ]; then
+  echo "== Windows native C syntax preflight"
+  $CC $CFLAGS -fsyntax-only "$ROOT/src/main.c" "$ROOT"/src/platform/windows/*.c
+fi
+
 # ---- third-party ---------------------------------------------------------------------------
 if [ $CLEAN_TP = 1 ]; then rm -rf "$B/tp"; mkdir -p "$B/tp"; fi
 if [ ! -f "$B/tp/libtp.a" ]; then
