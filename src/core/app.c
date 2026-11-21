@@ -492,31 +492,37 @@ static void chip_act(int i, int b) { (void)b; Scr tg = chipScr(i); Scr cur = (SC
   if (tg == SCR_SEARCH || tg == SCR_SET) topnav_key(K_OK); /* opens it, the highlight inside */
   else if (i != ci || !app_is_board(SCR)) { topNav.idx = -1; topnav_switch(i); }
   else topnav_enter_content(); }
-/* CINEMA_NATIVE_NAV_V1 */
-/* Native visual layer: all navigation, catalog, identity and playback routes
- * remain owned by Stremio Origin. No HTML, network request or new GL pass. */
+/* CINEMA_NATIVE_NAV_V2: positions derived from the user's 1200x675 reference. */
 #ifdef SB_CINEMA_NATIVE
 static int cinema_nav_draw(void) {
   if (SCR == SCR_LOGIN || revpanel_page_k() >= 0.999f) return 0;
-  if (!topNav.laidOut) topnav_paint();
-  const float cy = 51.0f, h = 62.0f;
-  const uint32_t white = RGB(255,255,255), muted = RGB(225,217,217);
-  for (int i = 0; i < 5; ++i) {
-    float x = topNav.chipX[i], w = topNav.chipW[i];
+  /* Real destinations are kept: Search, Home, Discover, Library, Settings.
+   * Shows/Movies need genuine catalog filters before they can be exposed. */
+  static const int order[5] = { NAV_SET, NAV_SEARCH, NAV_HOME, NAV_DISC, NAV_LIB };
+  static const float x[5] = { 46, 568, 625, 802, 1012 };
+  static const float w[5] = { 62, 54, 155, 185, 185 };
+  const float cy = 72, h = 74;
+  const uint32_t white = RGB(255,255,255), muted = RGB(235,225,226);
+  for (int j = 0; j < 5; ++j) {
+    int i = order[j]; float px = x[j], pw = w[j];
     int focused = chipFocused(i), selected = focused || chipCur(i);
-    hit_add_nav(x, cy - h / 2, w, h, chip_focus, chip_act, i, 0);
+    topNav.chipX[i] = px; topNav.chipW[i] = pw;
+    hit_add_nav(px, cy - h / 2, pw, h, chip_focus, chip_act, i, 0);
     if (i == NAV_SET || i == NAV_SEARCH) {
-      if (focused) gfx_rrect(x + 7, cy - 29, w - 14, 58, 29, WHITE_A(46));
+      if (focused) gfx_rrect(px + 5, cy - 34, pw - 10, 68, 34, WHITE_A(42));
       const char *ico = i == NAV_SEARCH ? "search" : "settings";
-      if (icon_exists(ico)) icon_draw(ico, x + (w - 31) / 2, cy - 15.5f, 31, white);
-      else text_draw(i == NAV_SEARCH ? "Search" : "Settings", x + w / 2, cy - 15, 22, 600, white, 0, w, ALIGN_CENTER);
+      if (icon_exists(ico)) icon_draw(ico, px + (pw - 30) / 2, cy - 15, 30, white);
+      else text_draw(i == NAV_SEARCH ? "Search" : "Settings", px + pw / 2, cy - 13, 19, 600, white, 0, pw, ALIGN_CENTER);
     } else {
-      if (selected) gfx_rrect(x, cy - h / 2, w, h, h / 2, white);
-      text_draw(chipLabel(i), x + w / 2, cy - 19, 29, selected ? 700 : 600,
-                selected ? RGB(15,15,15) : muted, -.2f, w - 20, ALIGN_CENTER);
-      if (focused && !chipCur(i)) gfx_ring_out(x, cy - h / 2, w, h, h / 2, 3, white);
+      if (selected) gfx_rrect(px, cy - h / 2, pw, h, h / 2, white);
+      text_draw(chipLabel(i), px + pw / 2, cy - 19, 31, selected ? 700 : 600,
+                selected ? RGB(15,15,15) : muted, -.2f, pw - 12, ALIGN_CENTER);
+      if (focused && !chipCur(i)) gfx_ring_out(px, cy - h / 2, pw, h, h / 2, 3, white);
     }
   }
+  /* Own brand treatment: typographic red N, no copyrighted Netflix asset. */
+  text_draw("N", SB_W - 80, 28, 62, 900, RGB(229,9,20), -3, 62, ALIGN_LEFT);
+  hit_add_nav(SB_W - 95, 20, 82, 82, chip_focus, chip_act, NAV_HOME, 0);
   return 1;
 }
 #endif /* SB_CINEMA_NATIVE */
