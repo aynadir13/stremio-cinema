@@ -725,6 +725,18 @@ static void bg_baked_draw(GLuint tex, float alpha) {
 }
 static void bg_layer_draw(BgLayer *l, float alpha) {
   if (!l->url[0]) return;
+#ifdef SB_CINEMA_NATIVE
+  /* The existing baked GPU texture is the real title backdrop and shading.
+   * Draw a single rounded image quad with matching source UVs: one pass,
+   * no HTML layer, no extra texture allocation, and no fictitious artwork. */
+  if (app_is_board(SCR) && !btr_under() && bg_bake(l)) {
+    const float x = 46, y = 142, w = SB_W - 92, h = 783;
+    gfx_image(l->baked.tex, x, y, w, h, 30,
+              WHITE_A((int)(255 * alpha + 0.5f)),
+              x / SB_W, 1 - y / SB_H, (x + w) / SB_W, 1 - (y + h) / SB_H);
+    return;
+  }
+#endif
   if (bg_bake(l)) { bg_baked_draw(l->baked.tex, alpha); return; }
   if (l->tex) { bg_picture(l, alpha); bg_shading(l->mode, alpha); } /* no offscreen drawing: shaded as drawn */
 }
