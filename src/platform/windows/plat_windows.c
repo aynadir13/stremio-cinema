@@ -13,9 +13,8 @@ void plat_pre_init(const char *id) {
   (void)id;
   const char *p = getenv("SB_ASSETS");
   snprintf(assets, sizeof assets, "%s", p && *p ? p : "assets");
-  p = getenv("LOCALAPPDATA");
-  if (!p || !*p) p = getenv("HOME");
-  snprintf(data, sizeof data, "%s/StremioCinemaPreview", p && *p ? p : ".");
+  p = getenv("HOME"); /* Cygwin POSIX file APIs need the POSIX home path. */
+  snprintf(data, sizeof data, "%s/.stremio-cinema-preview", p && *p ? p : ".");
   if (mkdir(data, 0700) != 0 && errno != EEXIST) fprintf(stderr,"[windows] data folder not writable: %s\n",data);
   applog_start(data);
 }
